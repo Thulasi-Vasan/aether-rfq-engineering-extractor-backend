@@ -11,6 +11,7 @@ import os
 import tempfile
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 
 from .agent.extractor import ExtractionError, extract_operations
 from .config import get_settings
@@ -25,6 +26,13 @@ logging.basicConfig(
 settings = get_settings()
 app = FastAPI(title=settings.api_title, version=settings.api_version)
 log = logging.getLogger(__name__)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/health")

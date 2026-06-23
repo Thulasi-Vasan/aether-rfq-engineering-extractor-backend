@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     # part weight from the solid volume for the feature summary.
     material_density_g_per_mm3: float = 0.0027
 
+    # --- CORS ------------------------------------------------------------
+    # Comma-separated list of allowed origins. Default allows all localhost
+    # ports for local frontend dev. Set CORS_ORIGINS in .env for production.
+    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173", "http://localhost:8080"]
+
     # --- App -------------------------------------------------------------
     api_title: str = "Aether RFQ Machining Operation Extractor"
     api_version: str = "0.1.0"
