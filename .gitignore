@@ -1,0 +1,21 @@
+# secrets
+.env
+
+# python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+
+# virtual envs
+.venv/
+
+# proprietary drawings & large binaries
+docs/
+
+# test artefacts
+response-postman.json
+
+# OS
+.DS_Store
