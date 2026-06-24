@@ -4,10 +4,11 @@ A FastAPI service that takes a **2D engineering drawing (PDF)** + a **3D STEP fi
 and uses an LLM on **AWS Bedrock (via boto3)** to infer the ordered list of
 **machining operations** for an RFQ estimation.
 
-The LLM produces only the *interpreted* fields — **operation number, description,
-reasoning**. The remaining cost/cycle-time columns are filled with **mock**
-values (flagged `is_mock`) for the frontend table until real cost inputs are
-wired in.
+The LLM produces the full **process-plan content** — a part overview, an ordered
+list of richly-described operations (plain summary, what we do, why, structured
+drawing evidence, machine & tooling), and an overall sequence justification. The
+cost/cycle-time columns are filled with **mock** values (flagged `is_mock`) for
+the frontend table until real cost inputs are wired in.
 
 ## How it works
 
@@ -95,6 +96,29 @@ curl -s -X POST http://localhost:8000/api/v1/extract-operations \
   -F "drawing_pdf=@/path/to/drawing.pdf" \
   -F "step_file=@/path/to/model.stp" | jq
 ```
+
+### Response shape
+
+See [`response-postman.json`](response-postman.json) for a full example. Top level:
+
+```
+part_overview            part metadata (name, number, revision, blank, material,
+                         drawing standard, most critical dimension + why, gaps)
+operations[]             ordered ops; each has:
+  opn_no, operation_name
+  plain_summary          one plain-language sentence (jargon-free)
+  what_we_do             physical action
+  why_this_operation     type choice + sequence logic + failure consequence
+  source_of_truth[]      structured drawing evidence (text, type, sheet, view)
+  machine_type, key_tooling, tool_choice_reason
+  assumptions_or_gaps[]
+  cycle_time_min, machine_cost_rs, amount_rs, ...   ← MOCK (is_mock: true)
+sequence_justification   overall ordering logic
+cell_cycle_time_min, total_capex_rs                 ← MOCK summary
+step_features            pythonOCC geometry summary
+```
+
+Only the cost/time columns are mock; everything else is LLM-derived.
 
 ## Project layout
 

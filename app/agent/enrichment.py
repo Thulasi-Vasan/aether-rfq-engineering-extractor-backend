@@ -27,9 +27,9 @@ def enrich_operations(operations: list[LLMOperation]) -> list[MachiningOperation
         cells = 1
         rows.append(
             MachiningOperationRow(
-                opn_no=op.opn_no,
-                description=op.description,
-                reasoning=op.reasoning,
+                # LLM-derived fields pass straight through.
+                **op.model_dump(),
+                # mock cost columns.
                 cycle_time_min=cycle,
                 no_of_machines_per_cell=1,
                 machine_cost_rs=cost,

@@ -97,15 +97,18 @@ def extract_operations(pdf_bytes: bytes, step_path: str) -> ExtractionResponse:
 
     # Keep operations in process order regardless of model ordering.
     ops = sorted(llm_result.operations, key=lambda o: o.opn_no)
-    log.info("LLM: part_number=%r  operations=%d", llm_result.part_number, len(ops))
+    part_number = llm_result.part_overview.part_number
+    log.info("LLM: part_number=%r  operations=%d", part_number, len(ops))
     for op in ops:
-        log.info("  opn %d — %s", op.opn_no, op.description)
+        log.info("  opn %d — %s", op.opn_no, op.operation_name)
     rows = enrichment.enrich_operations(ops)
 
     return ExtractionResponse(
-        part_number=llm_result.part_number,
+        part_overview=llm_result.part_overview,
+        part_number=part_number,
         model_id=settings.bedrock_model_id,
         operations=rows,
+        sequence_justification=llm_result.sequence_justification,
         cell_cycle_time_min=enrichment.mock_cell_cycle_time(rows),
         total_capex_rs=enrichment.mock_total_capex(rows),
         step_features=step_summary,
