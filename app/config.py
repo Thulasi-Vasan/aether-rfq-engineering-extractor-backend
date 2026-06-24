@@ -19,7 +19,12 @@ class Settings(BaseSettings):
     # BEDROCK_MODEL_ID to the exact model/inference-profile enabled in YOUR
     # account & region (check the Bedrock console -> Model access).
     bedrock_model_id: str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
-    bedrock_max_tokens: int = 4096
+    # Detailed process plans are long; 4096 truncates the tool call mid-JSON
+    # (stop_reason=max_tokens -> 0 operations parsed). Keep this generous.
+    bedrock_max_tokens: int = 16384
+    # boto3 read timeout (seconds). Detailed process plans can run long, so the
+    # default 60s is too short — give the model room to finish.
+    bedrock_read_timeout_s: int = 300
     # Optional named AWS profile; falls back to the default credential chain.
     aws_profile: str | None = None
 

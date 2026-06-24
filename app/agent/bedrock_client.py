@@ -2,6 +2,7 @@
 from functools import lru_cache
 
 import boto3
+from botocore.config import Config
 
 from ..config import get_settings
 
@@ -18,4 +19,11 @@ def get_bedrock_client():
         profile_name=settings.aws_profile,
         region_name=settings.aws_region,
     )
-    return session.client("bedrock-runtime")
+    # Detailed process plans can take well over boto3's default 60s read
+    # timeout, so extend it. One retry guards against transient blips.
+    config = Config(
+        read_timeout=settings.bedrock_read_timeout_s,
+        connect_timeout=10,
+        retries={"max_attempts": 2, "mode": "standard"},
+    )
+    return session.client("bedrock-runtime", config=config)
