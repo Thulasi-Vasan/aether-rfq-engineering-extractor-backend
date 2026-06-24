@@ -109,7 +109,12 @@ operations[]             ordered ops; each has:
   plain_summary          one plain-language sentence (jargon-free)
   what_we_do             physical action
   why_this_operation     type choice + sequence logic + failure consequence
-  source_of_truth[]      structured drawing evidence (text, type, sheet, view)
+  source_of_truth[]      structured drawing evidence; each item:
+    evidence_text, evidence_type, sheet, view_or_detail
+    verbatim_text, match_terms[]   ← LLM hints (exact printed tokens)
+    pdf_anchor                      ← backend-resolved PDF location:
+      page, anchor_bbox, region_bbox, page_size,
+      match_status (matched|ambiguous|not_found), confidence, candidates[]
   machine_type, key_tooling, tool_choice_reason
   assumptions_or_gaps[]
   cycle_time_min, machine_cost_rs, amount_rs, ...   ← MOCK (is_mock: true)
@@ -119,6 +124,22 @@ step_features            pythonOCC geometry summary
 ```
 
 Only the cost/time columns are mock; everything else is LLM-derived.
+
+### Evidence → PDF highlighting
+
+Each evidence item is located on the source PDF so the frontend can open the page
+and highlight the exact callout. The split of responsibility:
+
+- **LLM gives hints** — `verbatim_text` (most distinctive printed token) and
+  `match_terms` (up to 5 exact tokens, e.g. `["65.15","64.85","GAUGE"]`).
+- **Backend is the authority** — [`pdf_locator.py`](app/agent/pdf_locator.py) uses
+  pdfplumber to find those tokens on the cited sheet, disambiguates repeats
+  spatially (the `GAUGE` nearest the matched `65.15`/`64.85`), and returns a tight
+  `anchor_bbox` plus an expanded `region_bbox`.
+- `pdf_anchor` is **always present** (even on failure) with `match_status` so the
+  frontend can fall back to opening the page. Coordinates are PDF points,
+  top-left origin — map directly onto a pdf.js canvas scaled by
+  `renderWidth / page_size[0]`.
 
 ## Project layout
 
@@ -132,6 +153,7 @@ app/
     extractor.py       Converse call + parse + assemble response
     tool_schema.py     forced-tool JSON schema (structured output)
     step_parser.py     pythonOCC STEP -> feature summary (pluggable)
+    pdf_locator.py     pdfplumber: locate evidence -> page + bbox (highlighting)
     prompts.py         SYSTEM_PROMPT (owned by prompt author)
     enrichment.py      mock cost/cycle columns (replace with cost master)
 ```

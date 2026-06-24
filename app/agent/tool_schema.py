@@ -36,6 +36,24 @@ _EVIDENCE_ITEM = {
             "enum": ["dimension", "note", "spec", "datum", "classification", "view_ref"],
             "description": "What kind of drawing evidence this is.",
         },
+        "verbatim_text": {
+            "type": ["string", "null"],
+            "description": (
+                "The single MOST DISTINCTIVE exact token as printed on the drawing, used "
+                "to anchor the highlight — prefer a unique dimension/spec value like "
+                "'65.15' or 'E4-05-047', NOT a common word like 'GAUGE'. Null if none."
+            ),
+        },
+        "match_terms": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": (
+                "Up to 5 exact tokens printed on the drawing for this evidence, MOST "
+                "DISTINCTIVE FIRST (e.g. ['65.15','64.85','GAUGE']). Literal tokens copied "
+                "from the sheet only — no paraphrasing or added words. Used to locate and "
+                "disambiguate the evidence on the PDF."
+            ),
+        },
         "sheet": {
             "type": ["string", "null"],
             "description": "Sheet the evidence appears on, e.g. 'Sheet 1'. Null if unknown.",
@@ -45,7 +63,7 @@ _EVIDENCE_ITEM = {
             "description": "View/detail reference, e.g. 'Section X-X', 'Detail AB 2:1'. Null if N/A.",
         },
     },
-    "required": ["evidence_text", "evidence_type"],
+    "required": ["evidence_text", "evidence_type", "verbatim_text", "match_terms"],
 }
 
 _PART_OVERVIEW = {

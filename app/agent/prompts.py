@@ -57,6 +57,17 @@ For **each operation**, provide the following three sections:
 > - Classification markings (CRITICAL/S, MAJOR, Pass-Through/P, GAUGE callouts)
 > - Referenced specifications (E4-series, CES, engineering standards)
 > - Section/detail view references (e.g. "Detail AB 2:1", "Section Z-Z", "Sheet 2 View U")
+>
+> For EACH evidence item, also provide two fields used to locate and highlight it
+> on the PDF (these are matched against the drawing text by the backend):
+> - `verbatim_text`: the single MOST DISTINCTIVE exact token as printed on the
+>   drawing — prefer a unique dimension or spec value like `65.15` or `E4-05-047`,
+>   NOT a common word like `GAUGE`. Use `null` if there is no printed token.
+> - `match_terms`: up to 5 exact tokens printed on the drawing for this evidence,
+>   MOST DISTINCTIVE FIRST (e.g. `["65.15", "64.85", "GAUGE"]`). Copy literal
+>   tokens from the sheet only — no paraphrasing, no added words, no symbols that
+>   are not printed. Order: exact dimension/code, paired tolerance value, label,
+>   note keyword, view/detail reference.
 
 ---
 

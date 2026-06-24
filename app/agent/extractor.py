@@ -15,6 +15,7 @@ from ..config import get_settings
 from ..schemas import ExtractionResponse, LLMResult, StepFeatureSummary
 from . import enrichment
 from .bedrock_client import get_bedrock_client
+from .pdf_locator import resolve_anchors
 from .prompts import SYSTEM_PROMPT
 from .step_parser import summarize_step, summary_to_prompt_text
 from .tool_schema import TOOL_CONFIG, TOOL_NAME
@@ -101,6 +102,10 @@ def extract_operations(pdf_bytes: bytes, step_path: str) -> ExtractionResponse:
     log.info("LLM: part_number=%r  operations=%d", part_number, len(ops))
     for op in ops:
         log.info("  opn %d — %s", op.opn_no, op.operation_name)
+
+    # Resolve each evidence item to a PDF page + bbox (backend is the coord authority).
+    resolve_anchors(pdf_bytes, ops)
+
     rows = enrichment.enrich_operations(ops)
 
     return ExtractionResponse(
