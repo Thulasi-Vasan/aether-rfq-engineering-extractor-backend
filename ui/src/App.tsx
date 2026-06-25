@@ -1,17 +1,49 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Toaster, toast } from "sonner";
 import { NavBar } from "@/components/NavBar";
 import UploadScreen from "@/components/UploadScreen";
 import ProcessingScreen from "@/components/ProcessingScreen";
 import ResultsScreen from "@/components/ResultsScreen";
 import { extractOperations } from "@/lib/api";
+import { getSampleExtractionResponse } from "@/lib/sampleResponse";
 import type { AppState, ExtractResponse } from "@/types";
 
 export default function App() {
   const [state, setState] = useState<AppState>("upload");
   const [result, setResult] = useState<ExtractResponse | null>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
 
-  const handleSubmit = async (pdf: File, step: File) => {
+  useEffect(() => {
+    return () => {
+      if (pdfUrl) URL.revokeObjectURL(pdfUrl);
+    };
+  }, [pdfUrl]);
+
+  const handleSubmit = async (
+    pdf: File,
+    step: File | null,
+    useSampleResponse: boolean,
+  ) => {
+    const nextPdfUrl = URL.createObjectURL(pdf);
+    setPdfUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return nextPdfUrl;
+    });
+
+    if (useSampleResponse) {
+      setResult(getSampleExtractionResponse());
+      setState("results");
+      toast.success("Loaded saved response-postman.json");
+      return;
+    }
+
+    if (!step) {
+      toast.error("Please select a STEP file.");
+      URL.revokeObjectURL(nextPdfUrl);
+      setPdfUrl(null);
+      return;
+    }
+
     setState("processing");
     try {
       const data = await extractOperations(pdf, step);
@@ -20,12 +52,18 @@ export default function App() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error";
       toast.error(`Extraction failed: ${msg}`);
+      URL.revokeObjectURL(nextPdfUrl);
+      setPdfUrl(null);
       setState("upload");
     }
   };
 
   const handleReset = () => {
     setResult(null);
+    setPdfUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return null;
+    });
     setState("upload");
   };
 
@@ -34,8 +72,8 @@ export default function App() {
       <NavBar />
       {state === "upload" && <UploadScreen onSubmit={handleSubmit} />}
       {state === "processing" && <ProcessingScreen />}
-      {state === "results" && result && (
-        <ResultsScreen result={result} onReset={handleReset} />
+      {state === "results" && result && pdfUrl && (
+        <ResultsScreen result={result} pdfUrl={pdfUrl} onReset={handleReset} />
       )}
       <Toaster
         position="bottom-right"
