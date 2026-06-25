@@ -8,8 +8,9 @@ the cited sheet, disambiguates repeats spatially, and returns both a tight
 Design (per codex review):
   - `pdf_anchor` is ALWAYS returned (even on failure) so the frontend keeps
     page/status/confidence and can fall back to opening the page.
-  - Matching is narrow: exact (case-insensitive) + a normalised retry that strips
-    diameter symbols. No broad regex on words (avoids false positives).
+  - Matching is narrow but tolerant of PDF text-layer artifacts: unmapped CID
+    glyphs, diameter/degree symbols, whitespace splits, and mangled degree `$`
+    characters are normalized before matching.
   - Repeated tokens (e.g. 'GAUGE' x3) are only resolved when a unique anchor term
     (a distinctive dimension/spec value) exists nearby; otherwise -> 'ambiguous'.
   - Region expansion is RELATIVE to page size so it works across sheet scales.
@@ -29,11 +30,21 @@ from ..schemas import AnchorCandidate, DrawingEvidence, LLMOperation, PdfAnchor
 log = logging.getLogger(__name__)
 
 _MAX_TERMS = 5
+_MIN_NORM_LEN = 2
+_LINE_FACTOR = 2.2
 # A "distinctive" term is a dimension value or a spec/drawing code — these are
 # (near) unique on a sheet and so can anchor the disambiguation of common words.
 _DIM_RE = re.compile(r"^\d+(\.\d+)?$")
 _SPEC_RE = re.compile(r"^[A-Z]{1,4}[-\d][A-Z0-9-]*\d$")  # E4-05-047, 16061-style, CES codes
 _DIA_CHARS = "Ø⌀∅ "
+_CID_RE = re.compile(r"\(cid:\d+\)")
+_STRIP_RE = re.compile(r"[Ø⌀∅°$\s]")
+_ALPHA_ONLY_RE = re.compile(r"^[A-Za-z]{1,2}$")
+
+
+def _norm(s: str) -> str:
+    """Normalize LLM terms and PDF word text into a comparable search form."""
+    return _STRIP_RE.sub("", _CID_RE.sub("", s)).lower()
 
 
 def _is_distinctive(term: str) -> bool:
@@ -48,11 +59,14 @@ def _clean_terms(match_terms: list[str], verbatim_text: str | None) -> list[str]
     for t in [verbatim_text, *match_terms]:
         if not t:
             continue
-        key = t.strip().lower()
+        stripped = t.strip()
+        if _ALPHA_ONLY_RE.match(stripped):
+            continue
+        key = stripped.lower()
         if not key or key in seen:
             continue
         seen.add(key)
-        ordered.append(t.strip())
+        ordered.append(stripped)
     # distinctive terms first so they anchor disambiguation
     ordered.sort(key=lambda t: 0 if _is_distinctive(t) else 1)
     return ordered[:_MAX_TERMS]
@@ -77,6 +91,21 @@ def _box(match: dict) -> list[float]:
     return [match["x0"], match["top"], match["x1"], match["bottom"]]
 
 
+def _build_index(words: list[dict]) -> tuple[str, list[tuple[int, int, int]]]:
+    """Glue normalized page words and keep char-span -> word-index mapping."""
+    parts: list[str] = []
+    spans: list[tuple[int, int, int]] = []
+    pos = 0
+    for i, word in enumerate(words):
+        normalized = _norm(word.get("text", ""))
+        if not normalized:
+            continue
+        spans.append((pos, pos + len(normalized), i))
+        parts.append(normalized)
+        pos += len(normalized)
+    return "".join(parts), spans
+
+
 def _centroid(b: list[float]) -> tuple[float, float]:
     return ((b[0] + b[2]) / 2, (b[1] + b[3]) / 2)
 
@@ -95,15 +124,35 @@ def _union(boxes: list[list[float]]) -> list[float]:
     ]
 
 
-def _search(page, term: str) -> list[list[float]]:
-    """Exact (case-insensitive) search, with a diameter-symbol-stripped retry."""
+def _search(words: list[dict], glued: str, spans: list[tuple[int, int, int]], term: str) -> list[list[float]]:
+    """Search normalized glued PDF words for a normalized LLM term."""
     try:
-        hits = page.search(term, case=False)
-        if not hits:
-            norm = term.strip(_DIA_CHARS)
-            if norm and norm != term:
-                hits = page.search(norm, case=False)
-        return [_box(h) for h in hits]
+        normalized_term = _norm(term)
+        if len(normalized_term) < _MIN_NORM_LEN:
+            return []
+
+        boxes: list[list[float]] = []
+        start = 0
+        while (idx := glued.find(normalized_term, start)) != -1:
+            end = idx + len(normalized_term)
+            word_indexes = [word_idx for start_pos, end_pos, word_idx in spans if start_pos < end and end_pos > idx]
+            if word_indexes:
+                word_boxes = [_box(words[word_idx]) for word_idx in word_indexes]
+                union = _union(word_boxes)
+                tallest = max(box[3] - box[1] for box in word_boxes)
+                if (union[3] - union[1]) <= _LINE_FACTOR * tallest:
+                    boxes.append(_round(union))
+            start = idx + 1
+
+        seen: set[tuple[float, ...]] = set()
+        unique_boxes: list[list[float]] = []
+        for box in boxes:
+            key = tuple(box)
+            if key in seen:
+                continue
+            seen.add(key)
+            unique_boxes.append(box)
+        return unique_boxes
     except Exception:  # noqa: BLE001 - never let one term break the request
         return []
 
@@ -132,9 +181,16 @@ def _expand_region(
     ])
 
 
-def _locate_on_page(page, words: list[dict], page_w: float, page_h: float, terms: list[str]) -> PdfAnchor | None:
+def _locate_on_page(
+    words: list[dict],
+    glued: str,
+    spans: list[tuple[int, int, int]],
+    page_w: float,
+    page_h: float,
+    terms: list[str],
+) -> PdfAnchor | None:
     """Try to resolve `terms` on a single page. Returns None if nothing matched."""
-    hits: dict[str, list[list[float]]] = {t: _search(page, t) for t in terms}
+    hits: dict[str, list[list[float]]] = {t: _search(words, glued, spans, t) for t in terms}
     resolved = {t: bs for t, bs in hits.items() if bs}
     if not resolved:
         return None
@@ -183,7 +239,7 @@ def _locate_on_page(page, words: list[dict], page_w: float, page_h: float, terms
     )
 
 
-def _locate(pages, words_by_page, sizes, ev: DrawingEvidence) -> PdfAnchor:
+def _locate(pages, words_by_page, index_by_page, sizes, ev: DrawingEvidence) -> PdfAnchor:
     page_idx = _page_for_sheet(ev.sheet, len(pages))
     fallback_page = (page_idx + 1) if page_idx is not None else None
     fallback_size = list(sizes[page_idx]) if page_idx is not None else None
@@ -196,7 +252,8 @@ def _locate(pages, words_by_page, sizes, ev: DrawingEvidence) -> PdfAnchor:
     best: PdfAnchor | None = None
     for pidx in candidate_pages:
         pw, ph = sizes[pidx]
-        result = _locate_on_page(pages[pidx], words_by_page[pidx], pw, ph, terms)
+        glued, spans = index_by_page[pidx]
+        result = _locate_on_page(words_by_page[pidx], glued, spans, pw, ph, terms)
         if result is None:
             continue
         result.page = pidx + 1
@@ -218,6 +275,7 @@ def resolve_anchors(pdf_bytes: bytes, operations: list[LLMOperation]) -> list[LL
         with pdfplumber.open(BytesIO(pdf_bytes)) as pdf:
             pages = pdf.pages
             words_by_page = {i: p.extract_words() for i, p in enumerate(pages)}
+            index_by_page = {i: _build_index(words_by_page[i]) for i in range(len(pages))}
             sizes = {i: (float(p.width), float(p.height)) for i, p in enumerate(pages)}
             matched = 0
             total = 0
@@ -225,7 +283,7 @@ def resolve_anchors(pdf_bytes: bytes, operations: list[LLMOperation]) -> list[LL
                 for ev in op.source_of_truth:
                     total += 1
                     try:
-                        ev.pdf_anchor = _locate(pages, words_by_page, sizes, ev)
+                        ev.pdf_anchor = _locate(pages, words_by_page, index_by_page, sizes, ev)
                     except Exception:  # noqa: BLE001
                         ev.pdf_anchor = PdfAnchor(match_status="not_found")
                     if ev.pdf_anchor.match_status == "matched":

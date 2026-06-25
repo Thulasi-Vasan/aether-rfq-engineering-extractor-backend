@@ -68,6 +68,12 @@ For **each operation**, provide the following three sections:
 >   tokens from the sheet only — no paraphrasing, no added words, no symbols that
 >   are not printed. Order: exact dimension/code, paired tolerance value, label,
 >   note keyword, view/detail reference.
+> - Never use a bare single- or double-letter token as `verbatim_text` or the
+>   first `match_terms` item. Datum letters and detail/view labels such as `A`,
+>   `B`, `C`, `T`, and `AC` appear many times and cannot locate evidence reliably.
+>   For a view/detail reference, anchor on a distinctive printed dimension, note
+>   phrase, or spec code inside that view instead, such as `1.04 X 45`,
+>   `R0.8 MAX`, or `E4-05-047`.
 
 ---
 
