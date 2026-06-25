@@ -12,12 +12,13 @@ import {
 import { cn } from "@/lib/utils";
 
 interface Props {
-  onSubmit: (pdf: File, step: File) => void;
+  onSubmit: (pdf: File, step: File | null, useSampleResponse: boolean) => void;
 }
 
 export default function UploadScreen({ onSubmit }: Props) {
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [stepFile, setStepFile] = useState<File | null>(null);
+  const [useSampleResponse, setUseSampleResponse] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const pdfRef = useRef<HTMLInputElement>(null);
@@ -28,12 +29,16 @@ export default function UploadScreen({ onSubmit }: Props) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!pdfFile || !stepFile) {
-      setError("Please select both a PDF drawing and a STEP file.");
+    if (!pdfFile || (!useSampleResponse && !stepFile)) {
+      setError(
+        useSampleResponse
+          ? "Please select the PDF drawing so evidence highlights can render."
+          : "Please select both a PDF drawing and a STEP file.",
+      );
       return;
     }
     setError(null);
-    onSubmit(pdfFile, stepFile);
+    onSubmit(pdfFile, stepFile, useSampleResponse);
   };
 
   const makeDrop = useCallback(
@@ -147,6 +152,28 @@ export default function UploadScreen({ onSubmit }: Props) {
               )}
             />
 
+            <label className="flex items-start gap-3 rounded-xl border border-border bg-bg-surface px-4 py-3 text-left">
+              <input
+                type="checkbox"
+                checked={useSampleResponse}
+                onChange={(e) => {
+                  setUseSampleResponse(e.target.checked);
+                  setError(null);
+                }}
+                className="mt-0.5 h-4 w-4 rounded border-border text-accent-blue"
+              />
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-navy-900">
+                  Use saved Postman response
+                </span>
+                <span className="mt-0.5 block text-xs leading-5 text-text-secondary">
+                  Skip the backend and load <code>response-postman.json</code>{" "}
+                  immediately. Upload the matching PDF so source-of-truth
+                  highlights can be checked.
+                </span>
+              </span>
+            </label>
+
             {/* Error */}
             {error && (
               <div className="flex items-center gap-2 px-4 py-3 rounded-lg bg-danger-bg border border-danger/20 text-sm text-danger">
@@ -158,16 +185,18 @@ export default function UploadScreen({ onSubmit }: Props) {
             {/* Submit */}
             <button
               type="submit"
-              disabled={!pdfFile || !stepFile}
+              disabled={!pdfFile || (!useSampleResponse && !stepFile)}
               className={cn(
                 "w-full h-12 flex items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all",
-                pdfFile && stepFile
+                pdfFile && (useSampleResponse || stepFile)
                   ? "bg-navy-800 hover:bg-navy-700 text-white shadow-sm hover:shadow"
                   : "bg-bg-panel text-text-muted cursor-not-allowed",
               )}
             >
               <Upload className="w-4 h-4" />
-              Extract Machining Operations
+              {useSampleResponse
+                ? "Open Saved Response"
+                : "Extract Machining Operations"}
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>
@@ -175,8 +204,9 @@ export default function UploadScreen({ onSubmit }: Props) {
 
         {/* Info Footer */}
         <p className="text-center text-xs text-text-muted mt-6">
-          Processing takes ~15–20 seconds. Files are processed locally and never
-          stored.
+          {useSampleResponse
+            ? "Sample mode does not call the backend; it uses the saved JSON fixture."
+            : "Processing takes a few minutes for large drawings. Files are processed locally and never stored."}
         </p>
       </motion.div>
     </div>
