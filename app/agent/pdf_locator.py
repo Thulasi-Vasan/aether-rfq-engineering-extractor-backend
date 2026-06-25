@@ -32,6 +32,9 @@ log = logging.getLogger(__name__)
 _MAX_TERMS = 5
 _MIN_NORM_LEN = 2
 _LINE_FACTOR = 2.2
+_CLUSTER_RX = 0.05
+_CLUSTER_RY = 0.03
+_MIN_CLUSTER_TERMS = 2
 # A "distinctive" term is a dimension value or a spec/drawing code — these are
 # (near) unique on a sheet and so can anchor the disambiguation of common words.
 _DIM_RE = re.compile(r"^\d+(\.\d+)?$")
@@ -157,6 +160,68 @@ def _search(words: list[dict], glued: str, spans: list[tuple[int, int, int]], te
         return []
 
 
+def _cluster_disambiguate(
+    resolved: dict[str, list[list[float]]],
+    terms: list[str],
+    page_w: float,
+    page_h: float,
+) -> tuple[str, list[float], list[list[float]], int] | None:
+    """Resolve repeated terms if one tight cluster has more distinct terms.
+
+    Ties return None so genuine duplicate callouts stay ambiguous.
+    """
+    items = [(term, box) for term in terms if term in resolved for box in resolved[term]]
+    if len(items) < 2:
+        return None
+
+    rx = _CLUSTER_RX * page_w
+    ry = _CLUSTER_RY * page_h
+    parent = list(range(len(items)))
+    centroids = [_centroid(box) for _, box in items]
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    def union(i: int, j: int) -> None:
+        root_i = find(i)
+        root_j = find(j)
+        if root_i != root_j:
+            parent[root_i] = root_j
+
+    for i in range(len(items)):
+        for j in range(i + 1, len(items)):
+            if abs(centroids[i][0] - centroids[j][0]) <= rx and abs(centroids[i][1] - centroids[j][1]) <= ry:
+                union(i, j)
+
+    clusters: dict[int, list[int]] = {}
+    for i in range(len(items)):
+        clusters.setdefault(find(i), []).append(i)
+
+    def distinct_terms(indexes: list[int]) -> set[str]:
+        return {items[i][0] for i in indexes}
+
+    ranked = sorted(clusters.values(), key=lambda indexes: len(distinct_terms(indexes)), reverse=True)
+    if not ranked:
+        return None
+
+    top = ranked[0]
+    top_terms = distinct_terms(top)
+    second_count = len(distinct_terms(ranked[1])) if len(ranked) > 1 else 0
+    if len(top_terms) < _MIN_CLUSTER_TERMS or len(top_terms) <= second_count:
+        return None
+
+    term_to_box: dict[str, list[float]] = {}
+    for i in top:
+        term_to_box.setdefault(items[i][0], items[i][1])
+    anchor_term = next((term for term in terms if term in term_to_box and _is_distinctive(term)), None) or next(
+        term for term in terms if term in term_to_box
+    )
+    return anchor_term, term_to_box[anchor_term], [items[i][1] for i in top], len(top_terms)
+
+
 def _expand_region(
     base_boxes: list[float], words: list[dict], page_w: float, page_h: float
 ) -> list[float]:
@@ -205,6 +270,20 @@ def _locate_on_page(
     )
 
     if anchor_term is None:
+        cluster = _cluster_disambiguate(resolved, terms, page_w, page_h)
+        if cluster is not None:
+            cluster_anchor_term, cluster_anchor_bbox, cluster_boxes, n_terms = cluster
+            region = _expand_region(cluster_boxes, words, page_w, page_h)
+            confidence = round(min(0.8, 0.45 + 0.1 * n_terms), 2)
+            return PdfAnchor(
+                anchor_text=cluster_anchor_term,
+                anchor_bbox=_round(cluster_anchor_bbox),
+                region_bbox=region,
+                page_size=[round(page_w, 1), round(page_h, 1)],
+                match_status="matched",
+                confidence=confidence,
+            )
+
         # Every resolved term repeats -> genuinely ambiguous. Offer candidates so the
         # frontend can still open the page / let the user choose.
         first = next(t for t in terms if t in resolved)
