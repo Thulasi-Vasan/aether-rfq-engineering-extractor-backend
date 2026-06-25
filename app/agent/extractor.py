@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 
 from ..config import get_settings
 from ..schemas import ExtractionResponse, LLMResult, StepFeatureSummary
@@ -22,9 +23,27 @@ from .tool_schema import TOOL_CONFIG, TOOL_NAME
 
 log = logging.getLogger(__name__)
 
+_DEGREE_FIX_RE = re.compile(r"(?<=\d)\s*\$")
+
 
 class ExtractionError(RuntimeError):
     """Raised when the model does not return a usable tool call."""
+
+
+def _clean_degree_text(text: str | None) -> str | None:
+    """Render mangled degree symbols from the drawing text layer for display."""
+    return _DEGREE_FIX_RE.sub("°", text) if text else text
+
+
+def _clean_evidence_display_text(result: LLMResult) -> None:
+    """Normalize user-facing evidence text without changing raw match_terms."""
+    for op in result.operations:
+        for ev in op.source_of_truth:
+            try:
+                ev.evidence_text = _clean_degree_text(ev.evidence_text)
+                ev.verbatim_text = _clean_degree_text(ev.verbatim_text)
+            except Exception:  # noqa: BLE001 - one evidence item must not break extraction
+                log.debug("Could not clean degree text for opn %s evidence", op.opn_no, exc_info=True)
 
 
 def _extract_tool_input(response: dict) -> dict:
@@ -95,6 +114,7 @@ def extract_operations(pdf_bytes: bytes, step_path: str) -> ExtractionResponse:
 
     tool_input = _extract_tool_input(response)
     llm_result = LLMResult.model_validate(tool_input)
+    _clean_evidence_display_text(llm_result)
 
     # Keep operations in process order regardless of model ordering.
     ops = sorted(llm_result.operations, key=lambda o: o.opn_no)

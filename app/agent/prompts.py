@@ -74,6 +74,10 @@ For **each operation**, provide the following three sections:
 >   For a view/detail reference, anchor on a distinctive printed dimension, note
 >   phrase, or spec code inside that view instead, such as `1.04 X 45`,
 >   `R0.8 MAX`, or `E4-05-047`.
+> - Only cite features that are actually printed inside the view or detail you
+>   are referencing. Do not bundle a dimension, chamfer, or radius from one
+>   detail view into another's evidence; if a feature appears in a different
+>   view, attribute it to that view.
 
 ---
 
