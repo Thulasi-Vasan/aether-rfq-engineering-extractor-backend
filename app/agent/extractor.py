@@ -47,20 +47,18 @@ def _clean_evidence_display_text(result: LLMResult) -> None:
                 log.debug("Could not clean degree text for opn %s evidence", op.opn_no, exc_info=True)
 
 
-def _validate_machine_types(result: LLMResult) -> None:
-    """Log off-list machine selections and snap simple casing/spacing near-matches."""
+def _validate_inventory_names(result: LLMResult) -> None:
+    """Log off-list inventory selections and snap simple casing/spacing near-matches."""
     if not MACHINE_INVENTORY:
         return
     allowed = {machine.strip().casefold(): machine for machine in MACHINE_INVENTORY}
     for op in result.operations:
-        normalized = op.machine_type.strip().casefold()
-        canonical = allowed.get(normalized)
+        canonical = allowed.get(op.operation_name.strip().casefold())
         if canonical is None:
-            log.warning("opn %s: machine_type %r not in inventory", op.opn_no, op.machine_type)
-        elif canonical != op.machine_type:
-            log.warning("opn %s: normalized machine_type %r to %r", op.opn_no, op.machine_type, canonical)
-            op.machine_type = canonical
-            op.machine_type = canonical
+            log.warning("opn %s: operation_name %r not in inventory", op.opn_no, op.operation_name)
+        elif canonical != op.operation_name:
+            log.warning("opn %s: normalized operation_name %r to %r", op.opn_no, op.operation_name, canonical)
+            op.operation_name = canonical
 
 
 def _extract_tool_input(response: dict) -> dict:
@@ -132,7 +130,7 @@ def extract_operations(pdf_bytes: bytes, step_path: str) -> ExtractionResponse:
     tool_input = _extract_tool_input(response)
     llm_result = LLMResult.model_validate(tool_input)
     _clean_evidence_display_text(llm_result)
-    _validate_machine_types(llm_result)
+    _validate_inventory_names(llm_result)
 
     # Keep operations in process order regardless of model ordering.
     ops = sorted(llm_result.operations, key=lambda o: o.opn_no)
@@ -151,7 +149,6 @@ def extract_operations(pdf_bytes: bytes, step_path: str) -> ExtractionResponse:
         part_number=part_number,
         model_id=settings.bedrock_model_id,
         operations=rows,
-        sequence_justification=llm_result.sequence_justification,
         cell_cycle_time_min=enrichment.mock_cell_cycle_time(rows),
         total_capex_rs=enrichment.mock_total_capex(rows),
         step_features=step_summary,

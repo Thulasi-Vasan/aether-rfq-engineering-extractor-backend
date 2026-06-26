@@ -9,7 +9,6 @@ MACHINE_INVENTORY: list[str] = [
     # Turning centers
     "TURNING CENTER- Diffuser & Inlet M/cng (LT-20)",
     "TURNING CENTER- Outlet M/cng- SMALL, MEDIUM (LT-20)",
-    "TURNING CENTER- Diffuser & Inlet M/cng (with chuck)",
     # VMC / machining centers
     "VMC 450 & 5th AXIS - WTH ROTARY TABLE, XYZ600x450x500, TS-900 X 450",
     "Fanuc robo drill Alpha-D21LiB Plus - X-700x400x330 GPL 150 to 480 Table 850x410 Rpm 10000 Rapid 482/min (21tools) tool",
@@ -22,8 +21,7 @@ MACHINE_INVENTORY: list[str] = [
     "DEEP HOLE DRILLING MACHINE, LENGTH ABOVE 300 MM",
     # Post-machining stations
     "DRY CUM WET LEAK TEST",
-    "COORDINATE MEASURING MACHING (CMM)",
-    "FINAL INSPECTION",
+    "FINAL INSPECTION USING CMM",
     "ENDOSCOPE STATION",
     # Washing / cleaning
     "WASHING MACHINE - SMALL, BELOW 250 MM",
