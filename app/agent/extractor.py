@@ -16,6 +16,7 @@ from ..config import get_settings
 from ..schemas import ExtractionResponse, LLMResult, StepFeatureSummary
 from . import enrichment
 from .bedrock_client import get_bedrock_client
+from .inventory import MACHINE_INVENTORY
 from .pdf_locator import resolve_anchors
 from .prompts import SYSTEM_PROMPT
 from .step_parser import summarize_step, summary_to_prompt_text
@@ -44,6 +45,22 @@ def _clean_evidence_display_text(result: LLMResult) -> None:
                 ev.verbatim_text = _clean_degree_text(ev.verbatim_text)
             except Exception:  # noqa: BLE001 - one evidence item must not break extraction
                 log.debug("Could not clean degree text for opn %s evidence", op.opn_no, exc_info=True)
+
+
+def _validate_machine_types(result: LLMResult) -> None:
+    """Log off-list machine selections and snap simple casing/spacing near-matches."""
+    if not MACHINE_INVENTORY:
+        return
+    allowed = {machine.strip().casefold(): machine for machine in MACHINE_INVENTORY}
+    for op in result.operations:
+        normalized = op.machine_type.strip().casefold()
+        canonical = allowed.get(normalized)
+        if canonical is None:
+            log.warning("opn %s: machine_type %r not in inventory", op.opn_no, op.machine_type)
+        elif canonical != op.machine_type:
+            log.warning("opn %s: normalized machine_type %r to %r", op.opn_no, op.machine_type, canonical)
+            op.machine_type = canonical
+            op.machine_type = canonical
 
 
 def _extract_tool_input(response: dict) -> dict:
@@ -115,6 +132,7 @@ def extract_operations(pdf_bytes: bytes, step_path: str) -> ExtractionResponse:
     tool_input = _extract_tool_input(response)
     llm_result = LLMResult.model_validate(tool_input)
     _clean_evidence_display_text(llm_result)
+    _validate_machine_types(llm_result)
 
     # Keep operations in process order regardless of model ordering.
     ops = sorted(llm_result.operations, key=lambda o: o.opn_no)

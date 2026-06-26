@@ -18,7 +18,20 @@ Design notes:
     drawing evidence (enforced in the prompt, restated here for the model).
 """
 
+from .inventory import MACHINE_INVENTORY
+
 TOOL_NAME = "record_machining_operations"
+
+_MACHINE_TYPE_SCHEMA = {
+    "type": "string",
+    "description": (
+        "The machine / work-center for this operation. When an inventory is provided, "
+        "MUST be chosen EXACTLY from that fixed inventory list — do not invent or "
+        "reword. Pick based on the operation and the part's size/features."
+    ),
+}
+if MACHINE_INVENTORY:
+    _MACHINE_TYPE_SCHEMA["enum"] = MACHINE_INVENTORY
 
 _EVIDENCE_ITEM = {
     "type": "object",
@@ -150,10 +163,7 @@ _OPERATION = {
             ),
             "items": _EVIDENCE_ITEM,
         },
-        "machine_type": {
-            "type": "string",
-            "description": "Machine type, e.g. 'CNC Turning Center', 'VMC'.",
-        },
+        "machine_type": _MACHINE_TYPE_SCHEMA,
         "key_tooling": {
             "type": "string",
             "description": "Key tooling, e.g. 'PCD boring bar', 'carbide face mill'.",
