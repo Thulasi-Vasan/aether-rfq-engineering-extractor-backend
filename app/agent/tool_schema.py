@@ -76,9 +76,9 @@ _EVIDENCE_ITEM = {
         "view_or_detail": {
             "type": ["string", "null"],
             "description": (
-                "Actual local view/detail label nearest to the evidence token on the drawing, "
-                "e.g. 'Section X-X', 'Detail AB 2:1'. Do not infer from operation context; "
-                "use null if the local label is not visible/readable."
+                "Actual drawing view/detail that contains the evidence token, not simply the "
+                "nearest printed label. If inside an enlarged detail, use that detail as the "
+                "primary reference, e.g. 'Detail AC 5:1 / Section Z-Z'. Use null if unknown."
             ),
         },
     },

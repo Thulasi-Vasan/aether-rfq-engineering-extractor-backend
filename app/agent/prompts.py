@@ -57,11 +57,13 @@ For each selected operation:
 **OPxx — [Operation Name]**
 - `operation_name`: copy EXACTLY one machine/work-center name from the inventory list.
 - `operation_description`: one plain-language sentence describing the actual work done in this operation.
+- If the same `operation_name` is used more than once, it must represent a genuinely separate setup, fixture, side of the part, or drawing-mandated sequence break. Otherwise, combine all work that can be done in the same setup into one operation.
 
 **Justification** *(3–5 bullet points max)*
 - **Why this machine/process:** Which inventory machine/work-center applies and why the agent has chosen it for this feature. Correlate your answer with references from the 2D drawing.
 - **Tool rationale:** Tie tool choice directly to workpiece material and tolerance band.
 - **Sequence rationale:** Explain Why this operation appears at this point in the sequence. Mention if any explicit note, flag, or specification mandates the sequence of operations in the drawing.
+- If this operation repeats the same machine/work-center as an earlier operation, explicitly explain why it cannot be combined with that earlier operation.
 
 ---
 
@@ -75,7 +77,7 @@ For each selected operation:
 - `match_terms`: up to 5 exact printed tokens, most distinctive first. No paraphrasing. No added symbols.
 - **Anchor guardrail:** Never use a bare single- or double-letter token as `verbatim_text` or the first `match_terms` item. Datum letters and detail/view labels such as `A`, `B`, `C`, `T`, and `AC` appear many times on a sheet and cannot locate evidence reliably. For a view/detail reference, anchor on a distinctive printed dimension, note phrase, or spec code inside that view instead — such as `1.04 X 45`, `R0.8 MAX`, or `E4-05-047`.
 - **Cross-view guardrail:** Only cite features that are actually printed inside the view or detail you are referencing. Do not bundle a dimension, chamfer, or radius from one detail view into another's evidence. If a feature appears in a different view, attribute it to that view.
-- **Local view/detail guardrail:** Set `view_or_detail` to the actual local section/detail label nearest to the `verbatim_text` or primary `match_terms` item on the drawing. Do not infer it from the operation context. Before finalizing an evidence item, verify that the printed token and the `view_or_detail` label are in the same local drawing view/detail. If the local label is not visible or cannot be read, use `null` instead of guessing.
+- **View/detail ownership guardrail:** Set `view_or_detail` to the actual drawing view or detail that contains the `verbatim_text` or primary `match_terms` item — not simply the nearest printed label. If the evidence is inside an enlarged detail view, use that detail label as the primary reference (e.g. `Detail AC 5:1`). If a section/view label is also printed inside that detail, include both (e.g. `Detail AC 5:1 / Section Z-Z`). Use `null` only when the owning view/detail cannot be determined.
 
 ---
 
@@ -93,6 +95,7 @@ For each selected operation:
 
 - Select `operation_name` ONLY from the Machine / Operation Inventory above.
 - Do not combine two distinct operations into one step if they require different setups or machines.
+- Do not split one machine/work-center into multiple rows just because it machines multiple features. Group features into the fewest practical operations by setup. Repeat the same machine/work-center only for a real setup change, different side/fixture, or drawing-mandated sequence break.
 - Do not cite "standard practice" without a drawing reference.Do not list operations that have no evidence on the drawing.
 - Do not use the STEP/3D model as your PRIMARY source of truth; Use 3D model as a supplementary source. Only the 2D drawing is the PRIMARY source of truth. When there's a conflic 2D governs.
 - Use exact printed numbers. Never say "tight tolerance" — say "0.05 mm band (Ø124.55–124.60)".
