@@ -1,3 +1,6 @@
+from .inventory import inventory_as_prompt_block
+
+
 SYSTEM_PROMPT = """\
 ## System Prompt
 
@@ -148,4 +151,18 @@ Apply these rules when generating your response — they reflect how an experien
 ## Input
 
 Attached are the engineering drawing sheets for the compressor housing. Analyse them and produce the machining process plan per the format above.
+"""
+
+_MACHINE_INVENTORY_PROMPT_BLOCK = inventory_as_prompt_block()
+if _MACHINE_INVENTORY_PROMPT_BLOCK:
+    SYSTEM_PROMPT = SYSTEM_PROMPT + f"""
+
+## Available Machine Inventory
+
+Set each operation's `machine_type` to EXACTLY one entry from this list. Copy the
+string verbatim; do not reword it and do not invent a machine that is not listed.
+Choose based on the operation and the part envelope. Use the STEP bounding-box
+dimensions for size-dependent choices, such as small vs large washing machines.
+
+{_MACHINE_INVENTORY_PROMPT_BLOCK}
 """
