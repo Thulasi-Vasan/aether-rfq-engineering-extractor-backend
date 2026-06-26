@@ -11,15 +11,11 @@ export function NavBar() {
           <Factory className="w-4 h-4 text-white" />
         </div>
         <span className="text-navy-900 font-bold tracking-tight">
-          Aether — Machining Extractor
+          Machining Operation Extractor
         </span>
       </div>
 
-      <div className="ml-auto flex items-center gap-3">
-        <span className="text-xs font-medium text-text-muted px-2 py-1 rounded-md bg-bg-surface border border-border">
-          Powered by AWS Bedrock
-        </span>
-      </div>
+      <div className="ml-auto" />
     </header>
   );
 }

@@ -1,4 +1,4 @@
-import sampleResponse from "../../../response-postman.json";
+import sampleResponse from "../../../response.json";
 import type { ExtractResponse } from "@/types";
 
 export function getSampleExtractionResponse(): ExtractResponse {

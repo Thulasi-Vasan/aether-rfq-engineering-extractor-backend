@@ -5,7 +5,7 @@ import { Cpu, FileSearch, Layers, Zap } from "lucide-react";
 const STEPS = [
   { icon: FileSearch, label: "Parsing engineering drawing PDF…" },
   { icon: Cpu, label: "Analyzing STEP geometry features…" },
-  { icon: Layers, label: "Extracting machining operations via Claude…" },
+  { icon: Layers, label: "Extracting machining operations…" },
   { icon: Zap, label: "Finalizing operation sequence…" },
 ];
 
@@ -48,8 +48,8 @@ export default function ProcessingScreen() {
           Analyzing your files
         </h2>
         <p className="text-sm text-text-secondary mb-8">
-          Claude is extracting machining operations from your drawing and 3D
-          model. This typically takes 15–20 seconds.
+          Extracting machining operations from your drawing and 3D model. This
+          typically takes 15–20 seconds.
         </p>
 
         {/* Step list */}
