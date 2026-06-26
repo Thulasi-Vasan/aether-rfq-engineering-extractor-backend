@@ -75,7 +75,11 @@ _EVIDENCE_ITEM = {
         },
         "view_or_detail": {
             "type": ["string", "null"],
-            "description": "View/detail reference, e.g. 'Section X-X', 'Detail AB 2:1'. Null if N/A.",
+            "description": (
+                "Actual local view/detail label nearest to the evidence token on the drawing, "
+                "e.g. 'Section X-X', 'Detail AB 2:1'. Do not infer from operation context; "
+                "use null if the local label is not visible/readable."
+            ),
         },
     },
     "required": ["evidence_text", "evidence_type", "verbatim_text", "match_terms"],

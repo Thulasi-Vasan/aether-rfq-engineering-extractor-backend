@@ -75,6 +75,7 @@ For each selected operation:
 - `match_terms`: up to 5 exact printed tokens, most distinctive first. No paraphrasing. No added symbols.
 - **Anchor guardrail:** Never use a bare single- or double-letter token as `verbatim_text` or the first `match_terms` item. Datum letters and detail/view labels such as `A`, `B`, `C`, `T`, and `AC` appear many times on a sheet and cannot locate evidence reliably. For a view/detail reference, anchor on a distinctive printed dimension, note phrase, or spec code inside that view instead — such as `1.04 X 45`, `R0.8 MAX`, or `E4-05-047`.
 - **Cross-view guardrail:** Only cite features that are actually printed inside the view or detail you are referencing. Do not bundle a dimension, chamfer, or radius from one detail view into another's evidence. If a feature appears in a different view, attribute it to that view.
+- **Local view/detail guardrail:** Set `view_or_detail` to the actual local section/detail label nearest to the `verbatim_text` or primary `match_terms` item on the drawing. Do not infer it from the operation context. Before finalizing an evidence item, verify that the printed token and the `view_or_detail` label are in the same local drawing view/detail. If the local label is not visible or cannot be read, use `null` instead of guessing.
 
 ---
 
@@ -105,6 +106,6 @@ _MACHINE_INVENTORY_PROMPT_BLOCK = inventory_as_prompt_block()
 if _MACHINE_INVENTORY_PROMPT_BLOCK:
     SYSTEM_PROMPT = SYSTEM_PROMPT.replace(
         "You must ONLY select operations from the given inventory list. Do not invent operations outside it.",
-        "You must ONLY select `operation_name` and `machine_type` from the following list. Copy the name VERBATIM — do not reword or invent a machine that is not listed. For each operation, put the same exact selected inventory name in both `operation_name` and `machine_type`; put the one-line action summary in `operation_description`. Choose based on the operation and the part envelope (use STEP bounding-box dimensions for size-dependent choices, e.g. small vs large washing machine):\n\n"
+        "You must ONLY select `operation_name` from the following list. Copy the name VERBATIM — do not reword or invent a machine/work-center that is not listed. Put the one-line action summary in `operation_description`. Choose based on the operation and the part envelope (use STEP bounding-box dimensions for size-dependent choices, e.g. small vs large washing machine):\n\n"
         + _MACHINE_INVENTORY_PROMPT_BLOCK,
     )

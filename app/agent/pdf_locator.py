@@ -43,6 +43,7 @@ _DIA_CHARS = "Ø⌀∅ "
 _CID_RE = re.compile(r"\(cid:\d+\)")
 _STRIP_RE = re.compile(r"[Ø⌀∅°$\s]")
 _ALPHA_ONLY_RE = re.compile(r"^[A-Za-z]{1,2}$")
+_VIEW_REF_RE = re.compile(r"^[A-Za-z]{1,3}-[A-Za-z]{1,3}$")
 
 
 def _norm(s: str) -> str:
@@ -53,6 +54,11 @@ def _norm(s: str) -> str:
 def _is_distinctive(term: str) -> bool:
     t = term.strip(_DIA_CHARS)
     return bool(_DIM_RE.match(t) or _SPEC_RE.match(t))
+
+
+def _is_weak_anchor(term: str) -> bool:
+    """Terms like section labels locate a view, not the evidence inside it."""
+    return bool(_VIEW_REF_RE.match(term.strip()))
 
 
 def _clean_terms(match_terms: list[str], verbatim_text: str | None) -> list[str]:
@@ -262,10 +268,14 @@ def _locate_on_page(
 
     # Anchor = a term with a single, unambiguous occurrence (distinctive preferred).
     anchor_term = next(
-        (t for t in terms if t in resolved and _is_distinctive(t) and len(resolved[t]) == 1),
+        (
+            t
+            for t in terms
+            if t in resolved and _is_distinctive(t) and not _is_weak_anchor(t) and len(resolved[t]) == 1
+        ),
         None,
     ) or next(
-        (t for t in terms if t in resolved and len(resolved[t]) == 1),
+        (t for t in terms if t in resolved and not _is_weak_anchor(t) and len(resolved[t]) == 1),
         None,
     )
 
@@ -286,7 +296,9 @@ def _locate_on_page(
 
         # Every resolved term repeats -> genuinely ambiguous. Offer candidates so the
         # frontend can still open the page / let the user choose.
-        first = next(t for t in terms if t in resolved)
+        first = next((t for t in terms if t in resolved and not _is_weak_anchor(t)), None) or next(
+            t for t in terms if t in resolved
+        )
         candidates = [
             AnchorCandidate(
                 anchor_text=first,

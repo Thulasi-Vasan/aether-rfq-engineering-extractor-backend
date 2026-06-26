@@ -1,6 +1,6 @@
 """Fixed machine / work-center inventory.
 
-The LLM must select `machine_type` from this list when it is populated. This is
+The LLM must select `operation_name` from this list when it is populated. This is
 the single source of truth for machine names used by the tool schema, prompt,
 and backend validation.
 """
