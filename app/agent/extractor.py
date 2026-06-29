@@ -75,13 +75,14 @@ def _extract_tool_input(response: dict) -> dict:
     )
 
 
-def _call_bedrock(pdf_bytes: bytes, step_summary: StepFeatureSummary) -> dict:
+def _call_bedrock(pdf_bytes: bytes, step_summary: StepFeatureSummary | None) -> dict:
     settings = get_settings()
     client = get_bedrock_client()
 
+    step_context = ("\n\n" + summary_to_prompt_text(step_summary)) if step_summary is not None else ""
     user_text = (
-        "Determine the ordered machining operations for this part.\n\n"
-        + summary_to_prompt_text(step_summary)
+        "Determine the ordered machining operations for this part."
+        + step_context
         + "\nThe attached PDF is the 2D engineering drawing."
     )
 
@@ -124,7 +125,18 @@ def extract_operations(pdf_bytes: bytes, step_path: str) -> ExtractionResponse:
     """Run the full pipeline and return the frontend-ready response."""
     settings = get_settings()
 
-    step_summary = summarize_step(step_path, settings.material_density_g_per_mm3)
+    if settings.enable_occ:
+        step_summary = summarize_step(step_path, settings.material_density_g_per_mm3)
+        log.info("STEP summary JSON (copy this as STATIC_STEP_SUMMARY in .env):\n%s", step_summary.model_dump_json())
+    elif settings.use_static_summary:
+        step_summary = settings.get_static_step_summary()
+        if step_summary is None:
+            raise ValueError("USE_STATIC_SUMMARY=true but STATIC_STEP_SUMMARY is not set in .env")
+        log.info("OCC disabled: using static STEP summary from env")
+    else:
+        step_summary = None
+        log.info("OCC disabled and USE_STATIC_SUMMARY=false: sending no STEP context to LLM")
+
     response = _call_bedrock(pdf_bytes, step_summary)
 
     tool_input = _extract_tool_input(response)
