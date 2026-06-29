@@ -11,12 +11,6 @@ const STEPS = [
 
 export default function ProcessingScreen() {
   const [step, setStep] = useState(0);
-  const [elapsed, setElapsed] = useState(0);
-
-  useEffect(() => {
-    const tick = setInterval(() => setElapsed((s) => s + 1), 1000);
-    return () => clearInterval(tick);
-  }, []);
 
   useEffect(() => {
     if (step >= STEPS.length - 1) return;
@@ -49,7 +43,7 @@ export default function ProcessingScreen() {
         </h2>
         <p className="text-sm text-text-secondary mb-8">
           Extracting machining operations from your drawing and 3D model. This
-          typically takes 15–20 seconds.
+          typically takes 1 to 2 minutes.
         </p>
 
         {/* Step list */}
@@ -114,9 +108,6 @@ export default function ProcessingScreen() {
           })}
         </div>
 
-        <p className="text-xs text-text-muted">
-          Elapsed: {elapsed}s — please keep this tab open
-        </p>
       </motion.div>
     </div>
   );
