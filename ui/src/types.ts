@@ -22,9 +22,9 @@ export interface PdfAnchor {
 export interface SourceOfTruth {
   evidence_text: string;
   evidence_type: string;
-  sheet: string;
-  view_or_detail: string;
-  verbatim_text: string;
+  sheet: string | null;
+  view_or_detail: string | null;
+  verbatim_text: string | null;
   match_terms: string[];
   pdf_anchor: PdfAnchor | null;
 }
@@ -32,14 +32,13 @@ export interface SourceOfTruth {
 export interface MachiningOperation {
   opn_no: number;
   operation_name: string;
-  plain_summary: string;
-  what_we_do: string;
-  why_this_operation: string;
+  operation_description?: string;
+  why_machine_process?: string;
+  sequence_rationale?: string;
+  plain_summary?: string;
+  what_we_do?: string;
+  why_this_operation?: string;
   source_of_truth: SourceOfTruth[];
-  machine_type: string;
-  key_tooling: string;
-  tool_choice_reason: string;
-  assumptions_or_gaps: string[];
   cycle_time_min: number;
   no_of_machines_per_cell: number;
   machine_cost_rs: number;
@@ -49,15 +48,14 @@ export interface MachiningOperation {
 }
 
 export interface PartOverview {
-  part_name: string;
-  part_number: string;
-  revision: string;
-  input_blank: string;
-  material: string;
-  drawing_standard: string;
-  most_critical_dimension: string;
-  most_critical_dimension_reason: string;
-  assumptions_or_gaps: string[];
+  part_name: string | null;
+  part_number: string | null;
+  revision: string | null;
+  input_blank: string | null;
+  material: string | null;
+  drawing_standard: string | null;
+  most_critical_dimension?: string | null;
+  most_critical_dimension_reason?: string | null;
 }
 
 export interface StepFeatures {
@@ -78,7 +76,7 @@ export interface ExtractResponse {
   part_number: string;
   model_id: string;
   operations: MachiningOperation[];
-  sequence_justification: string;
+  sequence_justification?: string;
   cell_cycle_time_min: number;
   total_capex_rs: number;
   step_features: StepFeatures;

@@ -69,26 +69,19 @@ class PartOverview(BaseModel):
     input_blank: str | None = Field(None, description="Casting vs semi-finished, from Item Identifier/BOM.")
     material: str | None = Field(None, description="From the Associated Specifications.")
     drawing_standard: str | None = Field(None, description="From the title block, e.g. 'ASME Y14.5-2009'.")
-    most_critical_dimension: str | None = None
-    most_critical_dimension_reason: str | None = None
-    assumptions_or_gaps: list[str] = Field(default_factory=list)
 
 
 class LLMOperation(BaseModel):
     """A single operation as inferred by the LLM (the structured tool output)."""
 
     opn_no: int = Field(..., description="Operation number, e.g. 20, 30, 40 ...")
-    operation_name: str = Field(..., description="Short operation name.")
-    plain_summary: str = Field(..., description="One plain-language sentence, no unexplained jargon.")
-    what_we_do: str = Field(..., description="Physical action: machine, surfaces, state.")
-    why_this_operation: str = Field(..., description="Type choice + sequence logic + failure consequence.")
+    operation_name: str = Field(..., description="Exact operation/work-center name selected from inventory.")
+    operation_description: str = Field(..., description="One plain-language sentence describing the work done.")
+    why_machine_process: str = Field(..., description="Which machine/process and why, tied to drawing evidence.")
+    sequence_rationale: str = Field(..., description="Why at this point in sequence; any drawing-mandated order.")
     source_of_truth: list[DrawingEvidence] = Field(
         default_factory=list, description="Structured drawing evidence (never STEP geometry)."
     )
-    machine_type: str = Field(..., description="Machine type, e.g. 'CNC Turning Center'.")
-    key_tooling: str = Field(..., description="Key tooling, e.g. 'PCD boring bar'.")
-    tool_choice_reason: str = Field(..., description="Tool choice tied to material + tolerance band.")
-    assumptions_or_gaps: list[str] = Field(default_factory=list)
 
 
 class LLMResult(BaseModel):
@@ -96,7 +89,6 @@ class LLMResult(BaseModel):
 
     part_overview: PartOverview = Field(default_factory=PartOverview)
     operations: list[LLMOperation] = Field(default_factory=list)
-    sequence_justification: str | None = None
 
 
 class MachiningOperationRow(BaseModel):
@@ -105,14 +97,10 @@ class MachiningOperationRow(BaseModel):
     # --- LLM-derived ---
     opn_no: int
     operation_name: str
-    plain_summary: str
-    what_we_do: str
-    why_this_operation: str
+    operation_description: str
+    why_machine_process: str
+    sequence_rationale: str
     source_of_truth: list[DrawingEvidence] = Field(default_factory=list)
-    machine_type: str
-    key_tooling: str
-    tool_choice_reason: str
-    assumptions_or_gaps: list[str] = Field(default_factory=list)
     # --- mock / placeholder columns (pending real cost inputs) ---
     cycle_time_min: float
     no_of_machines_per_cell: int
@@ -144,7 +132,6 @@ class ExtractionResponse(BaseModel):
     part_number: str | None = None
     model_id: str
     operations: list[MachiningOperationRow]
-    sequence_justification: str | None = None
     cell_cycle_time_min: float = Field(0.0, description="MOCK summary value")
     total_capex_rs: int = Field(0, description="MOCK summary value")
     step_features: StepFeatureSummary | None = None

@@ -5,18 +5,12 @@ import { Cpu, FileSearch, Layers, Zap } from "lucide-react";
 const STEPS = [
   { icon: FileSearch, label: "Parsing engineering drawing PDF…" },
   { icon: Cpu, label: "Analyzing STEP geometry features…" },
-  { icon: Layers, label: "Extracting machining operations via Claude…" },
+  { icon: Layers, label: "Extracting machining operations…" },
   { icon: Zap, label: "Finalizing operation sequence…" },
 ];
 
 export default function ProcessingScreen() {
   const [step, setStep] = useState(0);
-  const [elapsed, setElapsed] = useState(0);
-
-  useEffect(() => {
-    const tick = setInterval(() => setElapsed((s) => s + 1), 1000);
-    return () => clearInterval(tick);
-  }, []);
 
   useEffect(() => {
     if (step >= STEPS.length - 1) return;
@@ -48,8 +42,8 @@ export default function ProcessingScreen() {
           Analyzing your files
         </h2>
         <p className="text-sm text-text-secondary mb-8">
-          Claude is extracting machining operations from your drawing and 3D
-          model. This typically takes 15–20 seconds.
+          Extracting machining operations from your drawing and 3D model. This
+          typically takes 1 to 2 minutes.
         </p>
 
         {/* Step list */}
@@ -114,9 +108,6 @@ export default function ProcessingScreen() {
           })}
         </div>
 
-        <p className="text-xs text-text-muted">
-          Elapsed: {elapsed}s — please keep this tab open
-        </p>
       </motion.div>
     </div>
   );

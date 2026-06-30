@@ -3,7 +3,6 @@ import { motion } from "framer-motion";
 import {
   FileText,
   Box,
-  Upload,
   X,
   ArrowRight,
   AlertCircle,
@@ -77,17 +76,9 @@ export default function UploadScreen({ onSubmit }: Props) {
       >
         {/* Header */}
         <div className="mb-8 text-center">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-border bg-white text-xs font-medium text-text-secondary mb-4 shadow-sm">
-            <span className="w-2 h-2 rounded-full bg-accent-blue animate-pulse" />
-            Claude + AWS Bedrock
-          </div>
           <h1 className="text-4xl font-bold tracking-tight text-navy-900 mb-3">
             Machining Operation Extractor
           </h1>
-          <p className="text-base text-text-secondary max-w-md mx-auto leading-relaxed">
-            Upload a 2D engineering drawing and STEP file to automatically
-            extract ordered machining operations for RFQ estimation.
-          </p>
         </div>
 
         {/* Upload Card */}
@@ -102,7 +93,7 @@ export default function UploadScreen({ onSubmit }: Props) {
               icon={<FileText className="w-6 h-6 text-accent-blue" />}
               file={pdfFile}
               accept=".pdf"
-              hint="PDF, up to 50 MB"
+              hint="PDF"
               dragging={pdfDragging}
               inputRef={pdfRef}
               onClear={() => setPdfFile(null)}
@@ -130,7 +121,7 @@ export default function UploadScreen({ onSubmit }: Props) {
               icon={<Box className="w-6 h-6 text-accent-blue" />}
               file={stepFile}
               accept=".step,.stp"
-              hint=".step or .stp, up to 200 MB"
+              hint=".step or .stp"
               dragging={stepDragging}
               inputRef={stepRef}
               onClear={() => setStepFile(null)}
@@ -193,7 +184,6 @@ export default function UploadScreen({ onSubmit }: Props) {
                   : "bg-bg-panel text-text-muted cursor-not-allowed",
               )}
             >
-              <Upload className="w-4 h-4" />
               {useSampleResponse
                 ? "Open Saved Response"
                 : "Extract Machining Operations"}
@@ -206,7 +196,7 @@ export default function UploadScreen({ onSubmit }: Props) {
         <p className="text-center text-xs text-text-muted mt-6">
           {useSampleResponse
             ? "Sample mode does not call the backend; it uses the saved JSON fixture."
-            : "Processing takes a few minutes for large drawings. Files are processed locally and never stored."}
+            : "Processing takes a few minutes for large drawings."}
         </p>
       </motion.div>
     </div>
@@ -250,9 +240,6 @@ function FileDropZone({
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-navy-900 truncate">
               {file.name}
-            </p>
-            <p className="text-xs text-text-secondary mt-0.5">
-              {(file.size / 1024 / 1024).toFixed(2)} MB
             </p>
           </div>
           <button

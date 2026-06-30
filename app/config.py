@@ -4,9 +4,12 @@ Every value below can be overridden via env vars (or a local .env file) so the
 agent can be re-pointed at a different Bedrock model / region without code
 changes. See .env.example for the full list.
 """
+import json
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from .schemas import StepFeatureSummary
 
 
 class Settings(BaseSettings):
@@ -32,6 +35,31 @@ class Settings(BaseSettings):
     # g/mm^3 — default is aluminium alloy (~2.7 g/cm^3). Used only to estimate
     # part weight from the solid volume for the feature summary.
     material_density_g_per_mm3: float = 0.0027
+
+    # Set to false when pythonOCC / cad-occ conda env is not available.
+    enable_occ: bool = True
+    # When enable_occ=false, set this to true to pass a pre-computed summary to
+    # the LLM instead of skipping STEP context entirely.
+    use_static_summary: bool = False
+    # JSON-encoded StepFeatureSummary stored directly in the env. Only read when
+    # enable_occ=false and use_static_summary=true.
+    static_step_summary: str | None = None
+
+    def get_static_step_summary(self) -> StepFeatureSummary | None:
+        """Parse STATIC_STEP_SUMMARY only when the static-summary path is used."""
+        if self.static_step_summary is None or not self.static_step_summary.strip():
+            return None
+        try:
+            raw_summary = json.loads(self.static_step_summary)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                "STATIC_STEP_SUMMARY must be valid JSON matching StepFeatureSummary. "
+                "Do not use placeholders like [...] or ..."
+            ) from exc
+        try:
+            return StepFeatureSummary.model_validate(raw_summary)
+        except ValueError as exc:
+            raise ValueError("STATIC_STEP_SUMMARY does not match the StepFeatureSummary schema") from exc
 
     # --- CORS ------------------------------------------------------------
     # Comma-separated list of allowed origins. Default allows all localhost

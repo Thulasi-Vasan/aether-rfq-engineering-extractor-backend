@@ -14,25 +14,48 @@ from __future__ import annotations
 
 import logging
 from collections import Counter
-
-from OCC.Core.Bnd import Bnd_Box
-from OCC.Core.BRepAdaptor import BRepAdaptor_Surface
-from OCC.Core.BRepBndLib import brepbndlib
-from OCC.Core.BRepGProp import brepgprop
-from OCC.Core.GeomAbs import GeomAbs_Cone, GeomAbs_Cylinder, GeomAbs_Plane
-from OCC.Core.GProp import GProp_GProps
-from OCC.Core.TopAbs import TopAbs_FACE, TopAbs_SOLID
-from OCC.Core.TopExp import TopExp_Explorer
-from OCC.Extend.DataExchange import read_step_file
+from typing import Any
 
 from ..schemas import StepFeatureSummary
 
 log = logging.getLogger(__name__)
 
 
-def _count_solids(shape) -> int:
+def _load_occ() -> tuple[Any, ...]:
+    try:
+        from OCC.Core.Bnd import Bnd_Box
+        from OCC.Core.BRepAdaptor import BRepAdaptor_Surface
+        from OCC.Core.BRepBndLib import brepbndlib
+        from OCC.Core.BRepGProp import brepgprop
+        from OCC.Core.GeomAbs import GeomAbs_Cone, GeomAbs_Cylinder, GeomAbs_Plane
+        from OCC.Core.GProp import GProp_GProps
+        from OCC.Core.TopAbs import TopAbs_FACE, TopAbs_SOLID
+        from OCC.Core.TopExp import TopExp_Explorer
+        from OCC.Extend.DataExchange import read_step_file
+    except ImportError as exc:
+        raise RuntimeError(
+            "pythonOCC is required when ENABLE_OCC=true. Install pythonocc-core in the "
+            "cad-occ conda env, or set ENABLE_OCC=false and optionally USE_STATIC_SUMMARY=true."
+        ) from exc
+    return (
+        Bnd_Box,
+        BRepAdaptor_Surface,
+        brepbndlib,
+        brepgprop,
+        GeomAbs_Cone,
+        GeomAbs_Cylinder,
+        GeomAbs_Plane,
+        GProp_GProps,
+        TopAbs_FACE,
+        TopAbs_SOLID,
+        TopExp_Explorer,
+        read_step_file,
+    )
+
+
+def _count_solids(shape: Any, top_exp_explorer: Any, top_abs_solid: Any) -> int:
     n = 0
-    exp = TopExp_Explorer(shape, TopAbs_SOLID)
+    exp = top_exp_explorer(shape, top_abs_solid)
     while exp.More():
         n += 1
         exp.Next()
@@ -41,6 +64,21 @@ def _count_solids(shape) -> int:
 
 def summarize_step(step_path: str, density_g_per_mm3: float) -> StepFeatureSummary:
     """Read a STEP file and return a compact geometric feature summary."""
+    (
+        Bnd_Box,
+        BRepAdaptor_Surface,
+        brepbndlib,
+        brepgprop,
+        GeomAbs_Cone,
+        GeomAbs_Cylinder,
+        GeomAbs_Plane,
+        GProp_GProps,
+        TopAbs_FACE,
+        TopAbs_SOLID,
+        TopExp_Explorer,
+        read_step_file,
+    ) = _load_occ()
+
     log.info("pythonOCC: reading STEP file %s", step_path)
     shape = read_step_file(step_path)
 
@@ -82,7 +120,7 @@ def summarize_step(step_path: str, density_g_per_mm3: float) -> StepFeatureSumma
         bounding_box_mm=bbox,
         volume_mm3=round(volume, 0),
         estimated_weight_kg=weight_kg,
-        num_solids=_count_solids(shape),
+        num_solids=_count_solids(shape, TopExp_Explorer, TopAbs_SOLID),
         num_faces=faces,
         num_cylindrical_faces=counts["cyl"],
         num_planar_faces=counts["plane"],

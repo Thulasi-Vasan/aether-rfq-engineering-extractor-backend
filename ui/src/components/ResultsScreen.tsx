@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import * as pdfjsLib from "pdfjs-dist";
 import {
-  AlertTriangle,
   Box,
   CheckCircle2,
   ChevronDown,
@@ -55,7 +54,10 @@ export default function ResultsScreen({ result, pdfUrl, onReset }: Props) {
   const [selectedEvidence, setSelectedEvidence] =
     useState<SelectedEvidence | null>(null);
 
-  const hasMockValues = result.operations.some((op) => op.is_mock);
+  const hasCriticalDimension =
+    Boolean(result.part_overview.most_critical_dimension) ||
+    Boolean(result.part_overview.most_critical_dimension_reason);
+  const hasSequenceJustification = Boolean(result.sequence_justification);
 
   const toggleOperation = (opnNo: number) => {
     setOpenOps((current) => {
@@ -83,7 +85,7 @@ export default function ResultsScreen({ result, pdfUrl, onReset }: Props) {
               {result.part_overview.part_name || "Machining Process Plan"}
             </h1>
             <p className="mt-1 truncate text-sm font-mono text-text-secondary">
-              Part {result.part_number} · Model {result.model_id}
+              Part {result.part_overview.part_number ?? result.part_number}
             </p>
           </div>
           <button
@@ -94,14 +96,6 @@ export default function ResultsScreen({ result, pdfUrl, onReset }: Props) {
             New Analysis
           </button>
         </motion.header>
-
-        {hasMockValues && (
-          <Notice tone="warning" icon={<AlertTriangle className="h-4 w-4" />}>
-            Cost, cycle-time, machine count, and amount fields are placeholder
-            values. Process sequence, operation summaries, and evidence links
-            come from the model response.
-          </Notice>
-        )}
 
         <section className="grid grid-cols-1 gap-4 lg:grid-cols-[1.35fr_0.65fr]">
           <Panel>
@@ -120,18 +114,24 @@ export default function ResultsScreen({ result, pdfUrl, onReset }: Props) {
                 value={result.part_overview.drawing_standard}
               />
             </div>
-            <div className="mt-5 rounded-lg border border-danger/20 bg-danger-bg/60 p-4">
-              <p className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-danger">
-                <ShieldAlert className="h-3.5 w-3.5" />
-                Critical Dimension
-              </p>
-              <p className="text-sm font-semibold text-navy-900">
-                {result.part_overview.most_critical_dimension}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-text-secondary">
-                {result.part_overview.most_critical_dimension_reason}
-              </p>
-            </div>
+            {hasCriticalDimension && (
+              <div className="mt-5 rounded-lg border border-danger/20 bg-danger-bg/60 p-4">
+                <p className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-danger">
+                  <ShieldAlert className="h-3.5 w-3.5" />
+                  Critical Dimension
+                </p>
+                {result.part_overview.most_critical_dimension && (
+                  <p className="text-sm font-semibold text-navy-900">
+                    {result.part_overview.most_critical_dimension}
+                  </p>
+                )}
+                {result.part_overview.most_critical_dimension_reason && (
+                  <p className="mt-2 text-sm leading-6 text-text-secondary">
+                    {result.part_overview.most_critical_dimension_reason}
+                  </p>
+                )}
+              </div>
+            )}
           </Panel>
 
           <Panel>
@@ -162,28 +162,70 @@ export default function ResultsScreen({ result, pdfUrl, onReset }: Props) {
         </section>
 
         <Panel>
-          <div className="mb-3 flex items-center gap-2">
-            <Layers3 className="h-4 w-4 text-navy-700" />
+          <div className="mb-4 flex items-center gap-2">
+            <Box className="h-4 w-4 text-navy-700" />
             <h2 className="text-sm font-semibold text-navy-900">
-              Sequence Justification
+              STEP Geometry Features
             </h2>
           </div>
-          <p className="text-sm leading-6 text-text-secondary">
-            {result.sequence_justification}
-          </p>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+            <GeometryItem
+              label="Bounding Box"
+              value={
+                result.step_features.bounding_box_mm
+                  .map((v) => v.toFixed(1))
+                  .join(" x ") + " mm"
+              }
+            />
+            <GeometryItem
+              label="Volume"
+              value={`${formatNumber(result.step_features.volume_mm3, 0)} mm3`}
+            />
+            <GeometryItem label="Solids" value={result.step_features.num_solids} />
+            <GeometryItem label="Faces" value={result.step_features.num_faces} />
+            <GeometryItem
+              label="Cylindrical"
+              value={result.step_features.num_cylindrical_faces}
+            />
+            <GeometryItem
+              label="Planar"
+              value={result.step_features.num_planar_faces}
+            />
+            <GeometryItem
+              label="Conical"
+              value={result.step_features.num_conical_faces}
+            />
+            <GeometryItem
+              label="Freeform"
+              value={result.step_features.num_freeform_faces}
+            />
+          </div>
         </Panel>
+
+        {hasSequenceJustification && (
+          <Panel>
+            <div className="mb-3 flex items-center gap-2">
+              <Layers3 className="h-4 w-4 text-navy-700" />
+              <h2 className="text-sm font-semibold text-navy-900">
+                Sequence Justification
+              </h2>
+            </div>
+            <p className="text-sm leading-6 text-text-secondary">
+              {result.sequence_justification}
+            </p>
+          </Panel>
+        )}
 
         <section className="space-y-3">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="text-lg font-semibold text-navy-900">
-                Operation Timeline
+                Machining Process Steps
               </h2>
               <p className="text-xs text-text-muted">
                 Click evidence chips to open the drawing anchor.
               </p>
             </div>
-            <MockLegend />
           </div>
 
           {result.operations.map((op, index) => (
@@ -200,61 +242,21 @@ export default function ResultsScreen({ result, pdfUrl, onReset }: Props) {
           ))}
         </section>
 
-        <section className="grid grid-cols-1 gap-4 lg:grid-cols-[0.75fr_1.25fr]">
-          <Panel>
-            <div className="mb-4 flex items-center gap-2">
-              <Box className="h-4 w-4 text-navy-700" />
-              <h2 className="text-sm font-semibold text-navy-900">
-                STEP Geometry Features
-              </h2>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <GeometryItem
-                label="Bounding Box"
-                value={
-                  result.step_features.bounding_box_mm
-                    .map((v) => v.toFixed(1))
-                    .join(" x ") + " mm"
-                }
-              />
-              <GeometryItem
-                label="Volume"
-                value={`${formatNumber(result.step_features.volume_mm3, 0)} mm3`}
-              />
-              <GeometryItem label="Solids" value={result.step_features.num_solids} />
-              <GeometryItem label="Faces" value={result.step_features.num_faces} />
-              <GeometryItem
-                label="Cylindrical"
-                value={result.step_features.num_cylindrical_faces}
-              />
-              <GeometryItem
-                label="Planar"
-                value={result.step_features.num_planar_faces}
-              />
-              <GeometryItem
-                label="Conical"
-                value={result.step_features.num_conical_faces}
-              />
-              <GeometryItem
-                label="Freeform"
-                value={result.step_features.num_freeform_faces}
-              />
-            </div>
-          </Panel>
-
+        <section>
           <Panel>
             <div className="mb-3 flex items-center gap-2">
               <Info className="h-4 w-4 text-navy-700" />
               <h2 className="text-sm font-semibold text-navy-900">
-                Notes and Plan Gaps
+                Notes
               </h2>
             </div>
-            {result.notes && (
+            {result.notes ? (
               <p className="mb-4 text-sm leading-6 text-text-secondary">
                 {result.notes}
               </p>
+            ) : (
+              <p className="text-sm text-text-muted">No notes returned.</p>
             )}
-            <ListItems items={result.part_overview.assumptions_or_gaps} />
           </Panel>
         </section>
       </div>
@@ -291,6 +293,12 @@ function OperationPanel({
     candidate?: PdfAnchorCandidate,
   ) => void;
 }) {
+  const description =
+    op.operation_description ?? op.plain_summary ?? "No operation description provided.";
+  const workSummary = op.what_we_do ?? op.operation_description ?? description;
+  const machineReason = op.why_machine_process ?? op.why_this_operation ?? "";
+  const sequenceReason = op.sequence_rationale ?? "";
+
   return (
     <motion.article
       initial={{ opacity: 0, y: 8 }}
@@ -310,9 +318,6 @@ function OperationPanel({
           <span className="block text-base font-semibold text-navy-900">
             {op.operation_name}
           </span>
-          <span className="mt-1 block text-sm leading-5 text-text-secondary">
-            {op.plain_summary}
-          </span>
         </span>
         <span className="mt-1 text-text-muted">
           {expanded ? (
@@ -324,77 +329,93 @@ function OperationPanel({
       </button>
 
       {expanded && (
-        <div className="border-t border-border px-4 py-5">
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_320px]">
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <TextBlock title="What We Do" text={op.what_we_do} />
-                <TextBlock
-                  title="Why This Operation"
-                  text={op.why_this_operation}
-                />
-              </div>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                <Fact label="Machine Type" value={op.machine_type} />
-                <Fact label="Key Tooling" value={op.key_tooling} />
-                <Fact label="Tool Choice" value={op.tool_choice_reason} />
-              </div>
-              {op.assumptions_or_gaps.length > 0 && (
-                <div className="rounded-lg border border-warning/25 bg-warning-bg/45 p-4">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-warning">
-                    Assumptions / Gaps
-                  </p>
-                  <ListItems items={op.assumptions_or_gaps} />
-                </div>
-              )}
-              <EvidenceList
-                evidence={op.source_of_truth}
-                onEvidenceClick={onEvidenceClick}
+        <div className="border-t border-border">
+          <div className="grid grid-cols-1 border-b border-border md:grid-cols-5">
+            <OperationMetric
+              label="Cycle Time"
+              value={`${formatNumber(op.cycle_time_min)} min`}
+              mock={op.is_mock}
+            />
+            <OperationMetric
+              label="Machines / Cell"
+              value={op.no_of_machines_per_cell}
+              mock={op.is_mock}
+            />
+            <OperationMetric
+              label="Machine Cost"
+              value={formatINR(op.machine_cost_rs)}
+              mock={op.is_mock}
+            />
+            <OperationMetric
+              label="Cells"
+              value={op.no_of_cells}
+              mock={op.is_mock}
+            />
+            <OperationMetric
+              label="Amount"
+              value={formatINR(op.amount_rs)}
+              mock={op.is_mock}
+            />
+          </div>
+          <div className="divide-y divide-border px-4 py-2">
+            <OperationTextRow title="Operation Description" text={workSummary} />
+            <OperationTextRow
+              title="Why This Machine / Process"
+              text={machineReason || "No machine/process rationale provided."}
+            />
+            {sequenceReason && (
+              <OperationTextRow
+                title="Sequence Rationale"
+                text={sequenceReason}
               />
-            </div>
-
-            <div className="rounded-lg border border-border bg-bg-surface p-4">
-              <div className="mb-3 flex items-center gap-2">
-                <IndianRupee className="h-4 w-4 text-navy-700" />
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-navy-900">
-                  Commercial Values
-                </h3>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <Metric
-                  label="Cycle Time"
-                  value={`${formatNumber(op.cycle_time_min)} min`}
-                  mock={op.is_mock}
-                />
-                <Metric
-                  label="Machines / Cell"
-                  value={op.no_of_machines_per_cell}
-                  mock={op.is_mock}
-                />
-                <Metric
-                  label="Machine Cost"
-                  value={formatINR(op.machine_cost_rs)}
-                  mock={op.is_mock}
-                />
-                <Metric
-                  label="Cells"
-                  value={op.no_of_cells}
-                  mock={op.is_mock}
-                />
-                <div className="col-span-2">
-                  <Metric
-                    label="Amount"
-                    value={formatINR(op.amount_rs)}
-                    mock={op.is_mock}
-                    strong
-                  />
-                </div>
-              </div>
-            </div>
+            )}
+          </div>
+          <div className="border-t border-border px-4 py-5">
+            <EvidenceList
+              evidence={op.source_of_truth ?? []}
+              onEvidenceClick={onEvidenceClick}
+            />
           </div>
         </div>
       )}
     </motion.article>
+  );
+}
+
+function OperationMetric({
+  label,
+  value,
+  mock,
+}: {
+  label: string;
+  value: string | number;
+  mock?: boolean;
+}) {
+  return (
+    <div className="border-b border-border px-4 py-4 last:border-b-0 md:border-b-0 md:border-r md:last:border-r-0">
+      <div className="mb-2 flex items-center gap-2">
+        <span className="text-[11px] font-bold uppercase tracking-widest text-text-muted">
+          {label}
+        </span>
+        {mock && <MockBadge />}
+      </div>
+      <p className="break-words text-xl font-bold leading-6 text-[#111111]">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function OperationTextRow({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="grid grid-cols-[138px_minmax(0,1fr)] items-start gap-4 py-4 sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6">
+      <h3 className="min-w-0 break-words pt-0.5 text-xs font-bold uppercase leading-5 tracking-widest text-text-muted">
+        {title}
+      </h3>
+      <p className="min-w-0 whitespace-pre-line break-words text-sm leading-6 text-[#111111]">
+        {text}
+      </p>
+    </div>
   );
 }
 
@@ -450,23 +471,6 @@ function EvidenceList({
               <p className="line-clamp-2 text-sm font-medium leading-5 text-navy-900">
                 {item.evidence_text}
               </p>
-              {item.verbatim_text && (
-                <p className="mt-1 line-clamp-2 text-xs leading-5 text-text-secondary">
-                  "{item.verbatim_text}"
-                </p>
-              )}
-              {item.match_terms.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {item.match_terms.slice(0, 4).map((term) => (
-                    <span
-                      key={term}
-                      className="rounded border border-border bg-bg-surface px-1.5 py-0.5 text-[10px] font-medium text-text-secondary"
-                    >
-                      {term}
-                    </span>
-                  ))}
-                </div>
-              )}
             </button>
           );
         })}
@@ -693,24 +697,6 @@ function EvidenceViewer({
               </span>
             </div>
             <EvidenceDetail selected={selected} />
-            {pageSize && (
-              <div className="mt-4 rounded-lg border border-border bg-bg-surface p-3 text-xs text-text-secondary">
-                <p>
-                  PDF page size:{" "}
-                  <span className="font-mono">
-                    {pageSize[0]} x {pageSize[1]} pt
-                  </span>
-                </p>
-                {pageWidth > 0 && pageHeight > 0 && (
-                  <p className="mt-1">
-                    Rendered:{" "}
-                    <span className="font-mono">
-                      {Math.round(pageWidth)} x {Math.round(pageHeight)} px
-                    </span>
-                  </p>
-                )}
-              </div>
-            )}
             {anchor?.match_status === "ambiguous" &&
               anchor.candidates.length > 0 && (
                 <div className="mt-5">
@@ -792,16 +778,6 @@ function EvidenceDetail({ selected }: { selected: SelectedEvidence }) {
           {selected.evidence.evidence_text}
         </p>
       </div>
-      {selected.evidence.verbatim_text && (
-        <div className="rounded-lg border border-border bg-bg-surface p-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
-            Verbatim
-          </p>
-          <p className="mt-1 text-sm leading-5 text-text-secondary">
-            "{selected.evidence.verbatim_text}"
-          </p>
-        </div>
-      )}
       <div className="grid grid-cols-2 gap-3 text-xs">
         <Fact label="Type" value={selected.evidence.evidence_type} compact />
         <Fact label="Sheet" value={selected.evidence.sheet} compact />
@@ -816,23 +792,6 @@ function EvidenceDetail({ selected }: { selected: SelectedEvidence }) {
           compact
         />
       </div>
-      {selected.evidence.match_terms.length > 0 && (
-        <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-text-muted">
-            Match Terms
-          </p>
-          <div className="flex flex-wrap gap-1">
-            {selected.evidence.match_terms.map((term) => (
-              <span
-                key={term}
-                className="rounded border border-border bg-bg-surface px-1.5 py-0.5 text-[10px] font-medium text-text-secondary"
-              >
-                {term}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -881,17 +840,6 @@ function Panel({ children }: { children: React.ReactNode }) {
     >
       {children}
     </motion.div>
-  );
-}
-
-function TextBlock({ title, text }: { title: string; text: string }) {
-  return (
-    <div>
-      <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-text-muted">
-        {title}
-      </h3>
-      <p className="text-sm leading-6 text-text-secondary">{text}</p>
-    </div>
   );
 }
 
@@ -956,15 +904,6 @@ function MockBadge() {
   );
 }
 
-function MockLegend() {
-  return (
-    <div className="flex items-center gap-1.5 text-xs text-text-muted">
-      <MockBadge />
-      = placeholder commercial value
-    </div>
-  );
-}
-
 function GeometryItem({
   label,
   value,
@@ -979,23 +918,6 @@ function GeometryItem({
         {value}
       </span>
     </div>
-  );
-}
-
-function ListItems({ items }: { items: string[] }) {
-  if (items.length === 0) {
-    return <p className="text-sm text-text-muted">No gaps reported.</p>;
-  }
-
-  return (
-    <ul className="space-y-2">
-      {items.map((item) => (
-        <li key={item} className="flex gap-2 text-sm leading-5 text-text-secondary">
-          <span className="mt-2 h-1.5 w-1.5 flex-none rounded-full bg-text-muted" />
-          <span>{item}</span>
-        </li>
-      ))}
-    </ul>
   );
 }
 

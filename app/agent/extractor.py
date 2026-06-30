@@ -10,11 +10,13 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 
 from ..config import get_settings
 from ..schemas import ExtractionResponse, LLMResult, StepFeatureSummary
 from . import enrichment
 from .bedrock_client import get_bedrock_client
+from .inventory import MACHINE_INVENTORY
 from .pdf_locator import resolve_anchors
 from .prompts import SYSTEM_PROMPT
 from .step_parser import summarize_step, summary_to_prompt_text
@@ -22,9 +24,41 @@ from .tool_schema import TOOL_CONFIG, TOOL_NAME
 
 log = logging.getLogger(__name__)
 
+_DEGREE_FIX_RE = re.compile(r"(?<=\d)\s*\$")
+
 
 class ExtractionError(RuntimeError):
     """Raised when the model does not return a usable tool call."""
+
+
+def _clean_degree_text(text: str | None) -> str | None:
+    """Render mangled degree symbols from the drawing text layer for display."""
+    return _DEGREE_FIX_RE.sub("°", text) if text else text
+
+
+def _clean_evidence_display_text(result: LLMResult) -> None:
+    """Normalize user-facing evidence text without changing raw match_terms."""
+    for op in result.operations:
+        for ev in op.source_of_truth:
+            try:
+                ev.evidence_text = _clean_degree_text(ev.evidence_text)
+                ev.verbatim_text = _clean_degree_text(ev.verbatim_text)
+            except Exception:  # noqa: BLE001 - one evidence item must not break extraction
+                log.debug("Could not clean degree text for opn %s evidence", op.opn_no, exc_info=True)
+
+
+def _validate_inventory_names(result: LLMResult) -> None:
+    """Log off-list inventory selections and snap simple casing/spacing near-matches."""
+    if not MACHINE_INVENTORY:
+        return
+    allowed = {machine.strip().casefold(): machine for machine in MACHINE_INVENTORY}
+    for op in result.operations:
+        canonical = allowed.get(op.operation_name.strip().casefold())
+        if canonical is None:
+            log.warning("opn %s: operation_name %r not in inventory", op.opn_no, op.operation_name)
+        elif canonical != op.operation_name:
+            log.warning("opn %s: normalized operation_name %r to %r", op.opn_no, op.operation_name, canonical)
+            op.operation_name = canonical
 
 
 def _extract_tool_input(response: dict) -> dict:
@@ -41,13 +75,14 @@ def _extract_tool_input(response: dict) -> dict:
     )
 
 
-def _call_bedrock(pdf_bytes: bytes, step_summary: StepFeatureSummary) -> dict:
+def _call_bedrock(pdf_bytes: bytes, step_summary: StepFeatureSummary | None) -> dict:
     settings = get_settings()
     client = get_bedrock_client()
 
+    step_context = ("\n\n" + summary_to_prompt_text(step_summary)) if step_summary is not None else ""
     user_text = (
-        "Determine the ordered machining operations for this part.\n\n"
-        + summary_to_prompt_text(step_summary)
+        "Determine the ordered machining operations for this part."
+        + step_context
         + "\nThe attached PDF is the 2D engineering drawing."
     )
 
@@ -90,11 +125,24 @@ def extract_operations(pdf_bytes: bytes, step_path: str) -> ExtractionResponse:
     """Run the full pipeline and return the frontend-ready response."""
     settings = get_settings()
 
-    step_summary = summarize_step(step_path, settings.material_density_g_per_mm3)
+    if settings.enable_occ:
+        step_summary = summarize_step(step_path, settings.material_density_g_per_mm3)
+        log.info("STEP summary JSON (copy this as STATIC_STEP_SUMMARY in .env):\n%s", step_summary.model_dump_json())
+    elif settings.use_static_summary:
+        step_summary = settings.get_static_step_summary()
+        if step_summary is None:
+            raise ValueError("USE_STATIC_SUMMARY=true but STATIC_STEP_SUMMARY is not set in .env")
+        log.info("OCC disabled: using static STEP summary from env")
+    else:
+        step_summary = None
+        log.info("OCC disabled and USE_STATIC_SUMMARY=false: sending no STEP context to LLM")
+
     response = _call_bedrock(pdf_bytes, step_summary)
 
     tool_input = _extract_tool_input(response)
     llm_result = LLMResult.model_validate(tool_input)
+    _clean_evidence_display_text(llm_result)
+    _validate_inventory_names(llm_result)
 
     # Keep operations in process order regardless of model ordering.
     ops = sorted(llm_result.operations, key=lambda o: o.opn_no)
@@ -113,7 +161,6 @@ def extract_operations(pdf_bytes: bytes, step_path: str) -> ExtractionResponse:
         part_number=part_number,
         model_id=settings.bedrock_model_id,
         operations=rows,
-        sequence_justification=llm_result.sequence_justification,
         cell_cycle_time_min=enrichment.mock_cell_cycle_time(rows),
         total_capex_rs=enrichment.mock_total_capex(rows),
         step_features=step_summary,
