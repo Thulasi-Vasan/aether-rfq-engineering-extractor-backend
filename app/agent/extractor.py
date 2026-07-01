@@ -138,6 +138,9 @@ def extract_operations(pdf_bytes: bytes, step_path: str) -> ExtractionResponse:
         log.info("OCC disabled and USE_STATIC_SUMMARY=false: sending no STEP context to LLM")
 
     response = _call_bedrock(pdf_bytes, step_summary)
+    with open("response.json", "w") as file:
+        json.dump(response,file, indent=4)
+        file.close()
 
     tool_input = _extract_tool_input(response)
     llm_result = LLMResult.model_validate(tool_input)

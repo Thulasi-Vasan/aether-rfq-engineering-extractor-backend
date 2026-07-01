@@ -51,6 +51,14 @@ _EVIDENCE_ITEM = {
             "enum": ["dimension", "note", "spec", "datum", "classification", "view_ref"],
             "description": "What kind of drawing evidence this is.",
         },
+        "component_category": {
+            "type": "string",
+            "enum": ["Inlet", "Outlet", "Volute", "Diffuser", "Entire Part", "Other"],
+            "description": (
+                "The functional component of the housing compressor this evidence relates to. "
+                "Use 'Entire Part' if it applies globally (like a general note or datum structure)."
+            ),
+        },
         "verbatim_text": {
             "type": ["string", "null"],
             "description": (
@@ -82,7 +90,7 @@ _EVIDENCE_ITEM = {
             ),
         },
     },
-    "required": ["evidence_text", "evidence_type", "verbatim_text", "match_terms"],
+    "required": ["evidence_text", "evidence_type", "component_category", "verbatim_text", "match_terms"],
 }
 
 _PART_OVERVIEW = {
@@ -94,7 +102,7 @@ _PART_OVERVIEW = {
         "revision": {"type": ["string", "null"], "description": "Drawing revision."},
         "input_blank": {
             "type": ["string", "null"],
-            "description": "Input blank type (casting vs semi-finished), from Item Identifier / BOM.",
+            "description": "Input blank type (casting vs semi-finished), from title block.",
         },
         "material": {
             "type": ["string", "null"],
@@ -123,26 +131,12 @@ _OPERATION = {
             "description": "Operation number in process order (e.g. 20, 30, 40 ...).",
         },
         "operation_name": _OPERATION_NAME_SCHEMA,
-        "operation_description": {
+        "operation_narrative": {
             "type": "string",
             "description": (
-                "One plain-language sentence describing the actual work done in this "
-                "operation, e.g. rough bore inducer, finish machine diffuser face, "
-                "wash, leak test, or final inspection."
-            ),
-        },
-        "why_machine_process": {
-            "type": "string",
-            "description": (
-                "Which inventory machine/process applies and why — tie to specific drawing "
-                "evidence (dimension, note, or classification) that justifies this choice."
-            ),
-        },
-        "sequence_rationale": {
-            "type": "string",
-            "description": (
-                "Why this operation appears at this point in the sequence — what came before "
-                "that makes it possible, and any drawing note/flag/spec that mandates the order."
+                "A single block of description in bullet points that fluidly articulates "
+                "what this step is, how it is achieved, the dimensional mapping, "
+                "why this machine is required, and why it is sequenced here."
             ),
         },
         "source_of_truth": {
@@ -156,9 +150,7 @@ _OPERATION = {
     "required": [
         "opn_no",
         "operation_name",
-        "operation_description",
-        "why_machine_process",
-        "sequence_rationale",
+        "operation_narrative",
         "source_of_truth",
     ],
 }

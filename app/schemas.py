@@ -53,6 +53,7 @@ class DrawingEvidence(BaseModel):
         default_factory=list, description="Exact printed tokens for locating/disambiguating (LLM hint)."
     )
     evidence_type: EvidenceType = Field(..., description="Kind of evidence.")
+    component_category: str = Field(..., description="Functional component categorization (e.g. Inlet, Diffuser, Entire Part).")
     sheet: str | None = Field(None, description="Sheet the evidence appears on, e.g. 'Sheet 1'.")
     view_or_detail: str | None = Field(None, description="View/detail ref, e.g. 'Section X-X'.")
     # Filled by the backend pdf_locator (authority for coordinates); always set before response.
@@ -76,9 +77,7 @@ class LLMOperation(BaseModel):
 
     opn_no: int = Field(..., description="Operation number, e.g. 20, 30, 40 ...")
     operation_name: str = Field(..., description="Exact operation/work-center name selected from inventory.")
-    operation_description: str = Field(..., description="One plain-language sentence describing the work done.")
-    why_machine_process: str = Field(..., description="Which machine/process and why, tied to drawing evidence.")
-    sequence_rationale: str = Field(..., description="Why at this point in sequence; any drawing-mandated order.")
+    operation_narrative: str = Field(..., description="A single block of description in bullet points.")
     source_of_truth: list[DrawingEvidence] = Field(
         default_factory=list, description="Structured drawing evidence (never STEP geometry)."
     )
@@ -97,9 +96,7 @@ class MachiningOperationRow(BaseModel):
     # --- LLM-derived ---
     opn_no: int
     operation_name: str
-    operation_description: str
-    why_machine_process: str
-    sequence_rationale: str
+    operation_narrative: str
     source_of_truth: list[DrawingEvidence] = Field(default_factory=list)
     # --- mock / placeholder columns (pending real cost inputs) ---
     cycle_time_min: float
