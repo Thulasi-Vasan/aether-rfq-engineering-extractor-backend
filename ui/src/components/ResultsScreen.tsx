@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
+import ReactMarkdown from "react-markdown";
 import * as pdfjsLib from "pdfjs-dist";
 import {
   Box,
@@ -48,9 +49,7 @@ interface SelectedEvidence {
 }
 
 export default function ResultsScreen({ result, pdfUrl, onReset }: Props) {
-  const [openOps, setOpenOps] = useState<Set<number>>(
-    () => new Set([result.operations[0]?.opn_no].filter(Boolean) as number[]),
-  );
+  const [openOps, setOpenOps] = useState<Set<number>>(new Set());
   const [selectedEvidence, setSelectedEvidence] =
     useState<SelectedEvidence | null>(null);
 
@@ -90,7 +89,7 @@ export default function ResultsScreen({ result, pdfUrl, onReset }: Props) {
           </div>
           <button
             onClick={onReset}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-white px-5 text-sm font-semibold text-navy-700 shadow-sm transition-colors hover:bg-bg-surface"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#12356D] bg-[#12356D] px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#0e2a56]"
           >
             <RotateCcw className="h-4 w-4" />
             New Analysis
@@ -223,7 +222,7 @@ export default function ResultsScreen({ result, pdfUrl, onReset }: Props) {
                 Machining Process Steps
               </h2>
               <p className="text-xs text-text-muted">
-                Click evidence chips to open the drawing anchor.
+                The following are the sequence of machining operations required to produce the compressor housing. Click on the source of truth to view the evidence.
               </p>
             </div>
           </div>
@@ -293,11 +292,7 @@ function OperationPanel({
     candidate?: PdfAnchorCandidate,
   ) => void;
 }) {
-  const description =
-    op.operation_description ?? op.plain_summary ?? "No operation description provided.";
-  const workSummary = op.what_we_do ?? op.operation_description ?? description;
-  const machineReason = op.why_machine_process ?? op.why_this_operation ?? "";
-  const sequenceReason = op.sequence_rationale ?? "";
+  const narrative = op.operation_narrative ?? "No operation narrative provided.";
 
   return (
     <motion.article
@@ -309,9 +304,9 @@ function OperationPanel({
       <button
         type="button"
         onClick={onToggle}
-        className="flex w-full items-start gap-4 px-4 py-4 text-left transition-colors hover:bg-bg-surface/70"
+        className="flex w-full items-center gap-4 px-4 sm:px-8 py-4 text-left transition-colors hover:bg-bg-surface/70"
       >
-        <span className="mt-0.5 flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-navy-800 text-xs font-bold text-white">
+        <span className="flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-navy-800 text-xs font-bold text-white">
           {op.opn_no}
         </span>
         <span className="min-w-0 flex-1">
@@ -357,20 +352,10 @@ function OperationPanel({
               mock={op.is_mock}
             />
           </div>
-          <div className="divide-y divide-border px-4 py-2">
-            <OperationTextRow title="Operation Description" text={workSummary} />
-            <OperationTextRow
-              title="Why This Machine / Process"
-              text={machineReason || "No machine/process rationale provided."}
-            />
-            {sequenceReason && (
-              <OperationTextRow
-                title="Sequence Rationale"
-                text={sequenceReason}
-              />
-            )}
+          <div className="divide-y divide-border px-4 sm:px-8 py-2">
+            <OperationTextRow title="Operation Narrative" text={narrative} />
           </div>
-          <div className="border-t border-border px-4 py-5">
+          <div className="border-t border-border px-4 sm:px-8 py-5">
             <EvidenceList
               evidence={op.source_of_truth ?? []}
               onEvidenceClick={onEvidenceClick}
@@ -392,555 +377,578 @@ function OperationMetric({
   mock?: boolean;
 }) {
   return (
-    <div className="border-b border-border px-4 py-4 last:border-b-0 md:border-b-0 md:border-r md:last:border-r-0">
+    <div className="border-b border-border px-4 py-4 first:pl-4 sm:first:pl-8 last:pr-4 sm:last:pr-8 last:border-b-0 md:border-b-0 md:border-r md:last:border-r-0">
       <div className="mb-2 flex items-center gap-2">
         <span className="text-[11px] font-bold uppercase tracking-widest text-text-muted">
           {label}
         </span>
         {mock && <MockBadge />}
       </div>
-      <p className="break-words text-xl font-bold leading-6 text-[#111111]">
+      <p className={cn("break-words font-bold leading-6 text-[#111111]", mock ? "text-base" : "text-xl")}>
         {value}
       </p>
     </div>
   );
 }
 
-function OperationTextRow({ title, text }: { title: string; text: string }) {
-  return (
-    <div className="grid grid-cols-[138px_minmax(0,1fr)] items-start gap-4 py-4 sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6">
-      <h3 className="min-w-0 break-words pt-0.5 text-xs font-bold uppercase leading-5 tracking-widest text-text-muted">
-        {title}
-      </h3>
-      <p className="min-w-0 whitespace-pre-line break-words text-sm leading-6 text-[#111111]">
-        {text}
-      </p>
-    </div>
-  );
-}
+  function OperationTextRow({ title, text }: { title: string; text: string }) {
+    // Convert literal bullet characters or malformed dashes to standard markdown lists
+    const markdownText = text.replace(/^[ \t]*[•-][ \t]*/gm, "- ");
 
-function EvidenceList({
-  evidence,
-  onEvidenceClick,
-}: {
-  evidence: SourceOfTruth[];
-  onEvidenceClick: (
-    evidence: SourceOfTruth,
-    candidate?: PdfAnchorCandidate,
-  ) => void;
-}) {
-  if (evidence.length === 0) {
     return (
-      <Notice icon={<CircleDashed className="h-4 w-4" />}>
-        No drawing evidence was returned for this operation.
-      </Notice>
+      <div className="grid grid-cols-[138px_minmax(0,1fr)] items-center gap-4 py-4 pr-4 sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:pr-8">
+        <h3 className="min-w-0 break-words pt-0.5 text-xs font-bold uppercase leading-5 tracking-widest text-text-muted">
+          {title}
+        </h3>
+        <div className="min-w-0 break-words text-sm leading-6 text-[#111111] text-justify [&>ul]:list-outside [&>ul]:ml-4 [&>ul]:list-disc [&>ul>li]:pl-1 [&>ul>li]:mb-4 marker:text-[#12356D]">
+          <ReactMarkdown>{markdownText}</ReactMarkdown>
+        </div>
+      </div>
     );
   }
 
-  return (
-    <div>
-      <div className="mb-2 flex items-center gap-2">
-        <FileSearch className="h-4 w-4 text-navy-700" />
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-navy-900">
-          Source of Truth
-        </h3>
-      </div>
-      <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
-        {evidence.map((item, index) => {
-          const status = item.pdf_anchor?.match_status ?? "not_found";
-          return (
-            <button
-              key={`${item.evidence_text}-${index}`}
-              type="button"
-              onClick={() => onEvidenceClick(item)}
-              className="rounded-lg border border-border bg-white p-3 text-left transition hover:border-accent-blue hover:bg-accent-light/20"
-            >
-              <div className="mb-2 flex flex-wrap items-center gap-2">
-                <StatusPill status={status} />
-                {item.sheet && (
-                  <span className="text-[11px] font-medium text-text-muted">
-                    {item.sheet}
-                  </span>
-                )}
-                {item.view_or_detail && (
-                  <span className="text-[11px] font-medium text-text-muted">
-                    {item.view_or_detail}
-                  </span>
-                )}
-              </div>
-              <p className="line-clamp-2 text-sm font-medium leading-5 text-navy-900">
-                {item.evidence_text}
-              </p>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function EvidenceViewer({
-  selected,
-  pdfUrl,
-  onClose,
-  onCandidateSelect,
-}: {
-  selected: SelectedEvidence;
-  pdfUrl: string;
-  onClose: () => void;
-  onCandidateSelect: (candidate: PdfAnchorCandidate) => void;
-}) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  const [zoom, setZoom] = useState(1);
-  const [pageWidth, setPageWidth] = useState(0);
-  const [pageHeight, setPageHeight] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const anchor = selected.evidence.pdf_anchor;
-  const pageNumber = anchor?.page ?? 1;
-  const pageSize = anchor?.page_size;
-  const activeAnchorBBox = selected.candidate?.anchor_bbox ?? anchor?.anchor_bbox;
-  const activeRegionBBox = selected.candidate?.region_bbox ?? anchor?.region_bbox;
-  const scale = pageSize && pageWidth > 0 ? pageWidth / pageSize[0] : 0;
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
-
-  useEffect(() => {
-    let disposed = false;
-
-    async function renderPage() {
-      setLoading(true);
-      setError(null);
-      try {
-        const response = await fetch(pdfUrl);
-        if (!response.ok) {
-          throw new Error(`Unable to read uploaded PDF (${response.status}).`);
-        }
-        const pdfBytes = await response.arrayBuffer();
-        if (disposed) return;
-
-        const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(pdfBytes) });
-        const pdfDoc = await loadingTask.promise;
-        if (disposed) return;
-
-        const safePage = Math.min(Math.max(pageNumber, 1), pdfDoc.numPages);
-        const page = await pdfDoc.getPage(safePage);
-        const baseViewport = page.getViewport({ scale: 1 });
-        const availableWidth = Math.max(360, window.innerWidth - 420);
-        const targetWidth = Math.max(720, availableWidth) * zoom;
-        const renderScale = targetWidth / baseViewport.width;
-        const viewport = page.getViewport({ scale: renderScale });
-        const canvas = canvasRef.current;
-        const context = canvas?.getContext("2d");
-        if (!canvas || !context || disposed) return;
-
-        const outputScale = Math.max(window.devicePixelRatio || 1, 2);
-        canvas.width = Math.floor(viewport.width * outputScale);
-        canvas.height = Math.floor(viewport.height * outputScale);
-        canvas.style.width = `${Math.floor(viewport.width)}px`;
-        canvas.style.height = `${Math.floor(viewport.height)}px`;
-        context.setTransform(outputScale, 0, 0, outputScale, 0, 0);
-        setPageWidth(viewport.width);
-        setPageHeight(viewport.height);
-
-        const renderTask = page.render({ canvasContext: context, viewport });
-        await renderTask.promise;
-        if (!disposed) setLoading(false);
-      } catch (err) {
-        if (
-          err instanceof Error &&
-          (err.name === "RenderingCancelledException" ||
-            err.message.includes("cancelled"))
-        ) {
-          return;
-        }
-        if (!disposed) {
-          setError(err instanceof Error ? err.message : "Unable to render PDF.");
-          setLoading(false);
-        }
-      }
+  function EvidenceList({
+    evidence,
+    onEvidenceClick,
+  }: {
+    evidence: SourceOfTruth[];
+    onEvidenceClick: (
+      evidence: SourceOfTruth,
+      candidate?: PdfAnchorCandidate,
+    ) => void;
+  }) {
+    if (evidence.length === 0) {
+      return (
+        <Notice icon={<CircleDashed className="h-4 w-4" />}>
+          No drawing evidence was returned for this operation.
+        </Notice>
+      );
     }
 
-    renderPage();
-    return () => {
-      disposed = true;
-    };
-  }, [pdfUrl, pageNumber, zoom]);
+    // Group by component_category or fallback to text heuristic
+    const grouped = evidence.reduce((acc, item) => {
+      let cat = item.component_category;
+      if (!cat) {
+        // Heuristic: take text before any digit or specific symbol
+        const match = item.evidence_text.match(/^([^\dØ]+)/);
+        cat = match ? match[1].trim() : "General";
+        // Clean up common trailing words or single letters
+        if (cat.endsWith(" R")) cat = cat.slice(0, -2);
+      }
 
-  useEffect(() => {
-    const scrollEl = scrollRef.current;
-    const bbox = activeRegionBBox ?? activeAnchorBBox;
-    if (!scrollEl || !bbox || scale <= 0) return;
+      const category = cat || "General Component";
+      if (!acc[category]) acc[category] = [];
+      acc[category].push(item);
+      return acc;
+    }, {} as Record<string, SourceOfTruth[]>);
 
-    const [x0, top, x1, bottom] = bbox;
-    const centerX = ((x0 + x1) / 2) * scale;
-    const centerY = ((top + bottom) / 2) * scale;
-
-    scrollEl.scrollTo({
-      left: Math.max(0, centerX - scrollEl.clientWidth / 2),
-      top: Math.max(0, centerY - scrollEl.clientHeight / 2),
-      behavior: "smooth",
-    });
-  }, [activeAnchorBBox, activeRegionBBox, scale]);
-
-  const updateZoom = (nextZoom: number) => {
-    setZoom(Math.min(3, Math.max(0.75, nextZoom)));
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 bg-white">
-      <div className="flex h-full w-full flex-col overflow-hidden bg-white">
-        <div className="flex flex-col gap-3 border-b border-border px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
-              Drawing Evidence · Op {selected.op.opn_no}
-            </p>
-            <h2 className="mt-1 text-lg font-semibold text-navy-900">
-              {selected.op.operation_name}
-            </h2>
-            <p className="mt-1 line-clamp-2 text-sm text-text-secondary">
-              {selected.evidence.evidence_text}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => updateZoom(zoom - 0.25)}
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-white px-3 text-sm font-semibold text-navy-700 transition hover:bg-bg-surface disabled:cursor-not-allowed disabled:text-text-muted"
-              disabled={zoom <= 0.75}
-            >
-              <Minus className="h-4 w-4" />
-              Zoom
-            </button>
-            <span className="inline-flex h-9 min-w-16 items-center justify-center rounded-lg border border-border bg-bg-surface px-3 font-mono text-xs font-semibold text-navy-900">
-              {Math.round(zoom * 100)}%
-            </span>
-            <button
-              type="button"
-              onClick={() => updateZoom(zoom + 0.25)}
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-white px-3 text-sm font-semibold text-navy-700 transition hover:bg-bg-surface disabled:cursor-not-allowed disabled:text-text-muted"
-              disabled={zoom >= 3}
-            >
-              <Plus className="h-4 w-4" />
-              Zoom
-            </button>
-            <button
-              type="button"
-              onClick={() => updateZoom(1)}
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-white px-3 text-sm font-semibold text-navy-700 transition hover:bg-bg-surface"
-            >
-              <Maximize2 className="h-4 w-4" />
-              Fit
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex h-9 items-center justify-center rounded-lg border border-border bg-white px-3 text-text-muted transition hover:bg-bg-surface hover:text-navy-900"
-              aria-label="Close drawing evidence"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
+    return (
+      <div>
+        <div className="mb-4 flex items-center gap-2">
+          <FileSearch className="h-4 w-4 text-navy-700" />
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-navy-900">
+            Source of Truth
+          </h3>
         </div>
-
-        <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px]">
-          <div ref={scrollRef} className="min-h-0 overflow-auto bg-bg-panel p-5">
-            <div className="relative mx-auto w-fit overflow-hidden rounded-md border border-border bg-white shadow-sm">
-              <canvas ref={canvasRef} />
-              {loading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-white/80 text-sm font-medium text-text-secondary">
-                  Rendering PDF page...
-                </div>
-              )}
-              {scale > 0 && activeRegionBBox && (
-                <HighlightBox
-                  bbox={activeRegionBBox}
-                  scale={scale}
-                  type="region"
-                />
-              )}
-              {scale > 0 && activeAnchorBBox && (
-                <HighlightBox
-                  bbox={activeAnchorBBox}
-                  scale={scale}
-                  type="anchor"
-                />
-              )}
-            </div>
-            {!error && anchor?.match_status === "not_found" && (
-              <p className="mx-auto mt-3 max-w-2xl rounded-lg border border-warning/30 bg-warning-bg px-3 py-2 text-sm text-warning">
-                No exact anchor was found. The referenced page is shown when a
-                page number is available.
-              </p>
-            )}
-            {error && (
-              <p className="mx-auto mt-3 max-w-2xl rounded-lg border border-danger/30 bg-danger-bg px-3 py-2 text-sm text-danger">
-                {error}
-              </p>
-            )}
-          </div>
-
-          <aside className="min-h-0 overflow-auto border-t border-border bg-white p-5 lg:border-l lg:border-t-0">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <StatusPill status={anchor?.match_status ?? "not_found"} />
-              <span className="text-xs font-mono text-text-muted">
-                Page {pageNumber}
-              </span>
-            </div>
-            <EvidenceDetail selected={selected} />
-            {anchor?.match_status === "ambiguous" &&
-              anchor.candidates.length > 0 && (
-                <div className="mt-5">
-                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-navy-900">
-                    Candidate Locations
-                  </h3>
-                  <div className="space-y-2">
-                    {anchor.candidates.map((candidate, index) => (
-                      <button
-                        type="button"
-                        key={`${candidate.anchor_text}-${index}`}
-                        onClick={() => onCandidateSelect(candidate)}
-                        className={cn(
-                          "w-full rounded-lg border p-3 text-left text-sm transition",
-                          selected.candidate === candidate
-                            ? "border-accent-blue bg-accent-light/35"
-                            : "border-border hover:border-accent-blue hover:bg-bg-surface",
-                        )}
-                      >
-                        <span className="font-semibold text-navy-900">
-                          Candidate {index + 1}
-                        </span>
-                        {candidate.anchor_text && (
-                          <span className="ml-2 font-mono text-xs text-text-muted">
-                            {candidate.anchor_text}
+        <div className="flex flex-col gap-6">
+          {Object.entries(grouped).map(([category, items]) => (
+            <div key={category} className="grid grid-cols-[138px_minmax(0,1fr)] items-start gap-4 pr-4 sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:pr-8">
+              <h4 className="min-w-0 break-words pl-6 pt-3 text-[11px] font-bold uppercase leading-5 tracking-widest text-[#12356D]">
+                {category}
+              </h4>
+              <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                {items.map((item, index) => {
+                  const status = item.pdf_anchor?.match_status ?? "not_found";
+                  return (
+                    <button
+                      key={`${item.evidence_text}-${index}`}
+                      type="button"
+                      onClick={() => onEvidenceClick(item)}
+                      className="rounded-lg border border-border bg-white p-3 text-left transition hover:border-accent-blue hover:bg-accent-light/20"
+                    >
+                      <div className="mb-2 flex flex-wrap items-center gap-2">
+                        <StatusPill status={status} />
+                        {item.sheet && (
+                          <span className="text-[11px] font-medium text-text-muted">
+                            {item.sheet}
                           </span>
                         )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-          </aside>
+                        {item.view_or_detail && (
+                          <span className="text-[11px] font-medium text-text-muted">
+                            {item.view_or_detail}
+                          </span>
+                        )}
+                      </div>
+                      <p className="line-clamp-2 text-sm font-medium leading-5 text-navy-900">
+                        {item.evidence_text}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
 
-function HighlightBox({
-  bbox,
-  scale,
-  type,
-}: {
-  bbox: PdfBBox;
-  scale: number;
-  type: "region" | "anchor";
-}) {
-  const [x0, top, x1, bottom] = bbox;
-  const style = {
-    left: x0 * scale,
-    top: top * scale,
-    width: (x1 - x0) * scale,
-    height: (bottom - top) * scale,
-  };
+  function EvidenceViewer({
+    selected,
+    pdfUrl,
+    onClose,
+    onCandidateSelect,
+  }: {
+    selected: SelectedEvidence;
+    pdfUrl: string;
+    onClose: () => void;
+    onCandidateSelect: (candidate: PdfAnchorCandidate) => void;
+  }) {
+    const canvasRef = useRef<HTMLCanvasElement | null>(null);
+    const scrollRef = useRef<HTMLDivElement | null>(null);
+    const [zoom, setZoom] = useState(1);
+    const [pageWidth, setPageWidth] = useState(0);
+    const [pageHeight, setPageHeight] = useState(0);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-  return (
-    <div
-      className={cn(
-        "pointer-events-none absolute z-10",
-        type === "region"
-          ? "border border-accent-blue/40 bg-accent-blue/15"
-          : "border border-white bg-white/25",
-      )}
-      style={style}
-    />
-  );
-}
+    const anchor = selected.evidence.pdf_anchor;
+    const pageNumber = anchor?.page ?? 1;
+    const pageSize = anchor?.page_size;
+    const activeAnchorBBox = selected.candidate?.anchor_bbox ?? anchor?.anchor_bbox;
+    const activeRegionBBox = selected.candidate?.region_bbox ?? anchor?.region_bbox;
+    const scale = pageSize && pageWidth > 0 ? pageWidth / pageSize[0] : 0;
 
-function EvidenceDetail({ selected }: { selected: SelectedEvidence }) {
-  const anchor = selected.evidence.pdf_anchor;
-  return (
-    <div className="space-y-4">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
-          Evidence
-        </p>
-        <p className="mt-1 text-sm leading-5 text-navy-900">
-          {selected.evidence.evidence_text}
-        </p>
-      </div>
-      <div className="grid grid-cols-2 gap-3 text-xs">
-        <Fact label="Type" value={selected.evidence.evidence_type} compact />
-        <Fact label="Sheet" value={selected.evidence.sheet} compact />
-        <Fact label="View / Detail" value={selected.evidence.view_or_detail} compact />
-        <Fact
-          label="Confidence"
-          value={
-            anchor?.confidence == null
-              ? "N/A"
-              : `${Math.round(anchor.confidence * 100)}%`
+    useEffect(() => {
+      const onKeyDown = (event: KeyboardEvent) => {
+        if (event.key === "Escape") onClose();
+      };
+
+      window.addEventListener("keydown", onKeyDown);
+      return () => window.removeEventListener("keydown", onKeyDown);
+    }, [onClose]);
+
+    useEffect(() => {
+      let disposed = false;
+
+      async function renderPage() {
+        setLoading(true);
+        setError(null);
+        try {
+          const loadingTask = pdfjsLib.getDocument({ url: pdfUrl });
+          const pdfDoc = await loadingTask.promise;
+          if (disposed) return;
+
+          const safePage = Math.min(Math.max(pageNumber, 1), pdfDoc.numPages);
+          const page = await pdfDoc.getPage(safePage);
+          const baseViewport = page.getViewport({ scale: 1 });
+          const availableWidth = Math.max(360, window.innerWidth - 420);
+          const targetWidth = Math.max(720, availableWidth) * zoom;
+          const renderScale = targetWidth / baseViewport.width;
+          const viewport = page.getViewport({ scale: renderScale });
+          const canvas = canvasRef.current;
+          const context = canvas?.getContext("2d");
+          if (!canvas || !context || disposed) return;
+
+          const outputScale = Math.max(window.devicePixelRatio || 1, 2);
+          canvas.width = Math.floor(viewport.width * outputScale);
+          canvas.height = Math.floor(viewport.height * outputScale);
+          canvas.style.width = `${Math.floor(viewport.width)}px`;
+          canvas.style.height = `${Math.floor(viewport.height)}px`;
+          context.setTransform(outputScale, 0, 0, outputScale, 0, 0);
+          setPageWidth(viewport.width);
+          setPageHeight(viewport.height);
+
+          const renderTask = page.render({ canvasContext: context, viewport });
+          await renderTask.promise;
+          if (!disposed) setLoading(false);
+        } catch (err) {
+          if (
+            err instanceof Error &&
+            (err.name === "RenderingCancelledException" ||
+              err.message.includes("cancelled"))
+          ) {
+            return;
           }
-          compact
-        />
-      </div>
-    </div>
-  );
-}
+          if (!disposed) {
+            setError(err instanceof Error ? err.message : "Unable to render PDF.");
+            setLoading(false);
+          }
+        }
+      }
 
-function StatusPill({ status }: { status: string }) {
-  const config =
-    status === "matched"
-      ? {
+      renderPage();
+      return () => {
+        disposed = true;
+      };
+    }, [pdfUrl, pageNumber, zoom]);
+
+    useEffect(() => {
+      const scrollEl = scrollRef.current;
+      const bbox = activeRegionBBox ?? activeAnchorBBox;
+      if (!scrollEl || !bbox || scale <= 0) return;
+
+      const [x0, top, x1, bottom] = bbox;
+      const centerX = ((x0 + x1) / 2) * scale;
+      const centerY = ((top + bottom) / 2) * scale;
+
+      scrollEl.scrollTo({
+        left: Math.max(0, centerX - scrollEl.clientWidth / 2),
+        top: Math.max(0, centerY - scrollEl.clientHeight / 2),
+        behavior: "smooth",
+      });
+    }, [activeAnchorBBox, activeRegionBBox, scale]);
+
+    const updateZoom = (nextZoom: number) => {
+      setZoom(Math.min(3, Math.max(0.75, nextZoom)));
+    };
+
+    return (
+      <div className="fixed inset-0 z-50 bg-white">
+        <div className="flex h-full w-full flex-col overflow-hidden bg-white">
+          <div className="flex flex-col gap-3 border-b border-border px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+                Drawing Evidence · Op {selected.op.opn_no}
+              </p>
+              <h2 className="mt-1 text-lg font-semibold text-navy-900">
+                {selected.op.operation_name}
+              </h2>
+              <p className="mt-1 line-clamp-2 text-sm text-text-secondary">
+                {selected.evidence.evidence_text}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => updateZoom(zoom - 0.25)}
+                className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-white px-3 text-sm font-semibold text-navy-700 transition hover:bg-bg-surface disabled:cursor-not-allowed disabled:text-text-muted"
+                disabled={zoom <= 0.75}
+              >
+                <Minus className="h-4 w-4" />
+                Zoom
+              </button>
+              <span className="inline-flex h-9 min-w-16 items-center justify-center rounded-lg border border-border bg-bg-surface px-3 font-mono text-xs font-semibold text-navy-900">
+                {Math.round(zoom * 100)}%
+              </span>
+              <button
+                type="button"
+                onClick={() => updateZoom(zoom + 0.25)}
+                className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-white px-3 text-sm font-semibold text-navy-700 transition hover:bg-bg-surface disabled:cursor-not-allowed disabled:text-text-muted"
+                disabled={zoom >= 3}
+              >
+                <Plus className="h-4 w-4" />
+                Zoom
+              </button>
+              <button
+                type="button"
+                onClick={() => updateZoom(1)}
+                className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-white px-3 text-sm font-semibold text-navy-700 transition hover:bg-bg-surface"
+              >
+                <Maximize2 className="h-4 w-4" />
+                Fit
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="inline-flex h-9 items-center justify-center rounded-lg border border-border bg-white px-3 text-text-muted transition hover:bg-bg-surface hover:text-navy-900"
+                aria-label="Close drawing evidence"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+
+          <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px]">
+            <div ref={scrollRef} className="min-h-0 overflow-auto bg-bg-panel p-5">
+              <div className="relative mx-auto w-fit overflow-hidden rounded-md border border-border bg-white shadow-sm">
+                <canvas ref={canvasRef} />
+                {loading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-white/80 text-sm font-medium text-text-secondary">
+                    Rendering PDF page...
+                  </div>
+                )}
+                {scale > 0 && activeRegionBBox && (
+                  <HighlightBox
+                    bbox={activeRegionBBox}
+                    scale={scale}
+                    type="region"
+                  />
+                )}
+                {scale > 0 && activeAnchorBBox && (
+                  <HighlightBox
+                    bbox={activeAnchorBBox}
+                    scale={scale}
+                    type="anchor"
+                  />
+                )}
+              </div>
+              {!error && anchor?.match_status === "not_found" && (
+                <p className="mx-auto mt-3 max-w-2xl rounded-lg border border-warning/30 bg-warning-bg px-3 py-2 text-sm text-warning">
+                  No exact anchor was found. The referenced page is shown when a
+                  page number is available.
+                </p>
+              )}
+              {error && (
+                <p className="mx-auto mt-3 max-w-2xl rounded-lg border border-danger/30 bg-danger-bg px-3 py-2 text-sm text-danger">
+                  {error}
+                </p>
+              )}
+            </div>
+
+            <aside className="min-h-0 overflow-auto border-t border-border bg-white p-5 lg:border-l lg:border-t-0">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <StatusPill status={anchor?.match_status ?? "not_found"} />
+                <span className="text-xs font-mono text-text-muted">
+                  Page {pageNumber}
+                </span>
+              </div>
+              <EvidenceDetail selected={selected} />
+              {anchor?.match_status === "ambiguous" &&
+                anchor.candidates.length > 0 && (
+                  <div className="mt-5">
+                    <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-navy-900">
+                      Candidate Locations
+                    </h3>
+                    <div className="space-y-2">
+                      {anchor.candidates.map((candidate, index) => (
+                        <button
+                          type="button"
+                          key={`${candidate.anchor_text}-${index}`}
+                          onClick={() => onCandidateSelect(candidate)}
+                          className={cn(
+                            "w-full rounded-lg border p-3 text-left text-sm transition",
+                            selected.candidate === candidate
+                              ? "border-accent-blue bg-accent-light/35"
+                              : "border-border hover:border-accent-blue hover:bg-bg-surface",
+                          )}
+                        >
+                          <span className="font-semibold text-navy-900">
+                            Candidate {index + 1}
+                          </span>
+                          {candidate.anchor_text && (
+                            <span className="ml-2 font-mono text-xs text-text-muted">
+                              {candidate.anchor_text}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+            </aside>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function HighlightBox({
+    bbox,
+    scale,
+    type,
+  }: {
+    bbox: PdfBBox;
+    scale: number;
+    type: "region" | "anchor";
+  }) {
+    const [x0, top, x1, bottom] = bbox;
+    const style = {
+      left: (x0 * scale) - 2,
+      top: (top * scale) - 2,
+      width: ((x1 - x0) * scale) + 4,
+      height: ((bottom - top) * scale) + 4,
+    };
+
+    return (
+      <div
+        className={cn(
+          "pointer-events-none absolute z-10",
+          type === "region"
+            ? "border border-accent-blue/40 bg-accent-blue/15"
+            : "border-2 border-yellow-400/60 bg-yellow-400/20 rounded-[2px]",
+        )}
+        style={style}
+      />
+    );
+  }
+
+  function EvidenceDetail({ selected }: { selected: SelectedEvidence }) {
+    const anchor = selected.evidence.pdf_anchor;
+    return (
+      <div className="space-y-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+            Evidence
+          </p>
+          <p className="mt-1 text-sm leading-5 text-navy-900">
+            {selected.evidence.evidence_text}
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-3 text-xs">
+          <Fact label="Type" value={selected.evidence.evidence_type} compact />
+          <Fact label="Sheet" value={selected.evidence.sheet} compact />
+          <Fact label="View / Detail" value={selected.evidence.view_or_detail} compact />
+          <Fact
+            label="Confidence"
+            value={
+              anchor?.confidence == null
+                ? "N/A"
+                : `${Math.round(anchor.confidence * 100)}%`
+            }
+            compact
+          />
+        </div>
+      </div>
+    );
+  }
+
+  function StatusPill({ status }: { status: string }) {
+    const config =
+      status === "matched"
+        ? {
           label: "matched",
           icon: <CheckCircle2 className="h-3 w-3" />,
           className: "border-success/25 bg-success-bg text-success",
         }
-      : status === "ambiguous"
-        ? {
+        : status === "ambiguous"
+          ? {
             label: "ambiguous",
             icon: <LocateFixed className="h-3 w-3" />,
             className: "border-warning/25 bg-warning-bg text-warning",
           }
-        : {
+          : {
             label: "not found",
             icon: <CircleDashed className="h-3 w-3" />,
             className: "border-border bg-bg-surface text-text-secondary",
           };
 
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
-        config.className,
-      )}
-    >
-      {config.icon}
-      {config.label}
-    </span>
-  );
-}
-
-function Panel({ children }: { children: React.ReactNode }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35 }}
-      className="rounded-xl border border-border bg-white p-5 shadow-sm"
-      style={{ boxShadow: "0 4px 24px rgba(10,22,40,0.06)" }}
-    >
-      {children}
-    </motion.div>
-  );
-}
-
-function Fact({
-  label,
-  value,
-  compact,
-}: {
-  label: string;
-  value: string | number;
-  compact?: boolean;
-}) {
-  return (
-    <div className={compact ? "" : "rounded-lg border border-border bg-bg-surface p-3"}>
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
-        {label}
-      </p>
-      <p className="mt-1 break-words text-sm font-medium leading-5 text-navy-900">
-        {value || "N/A"}
-      </p>
-    </div>
-  );
-}
-
-function Metric({
-  label,
-  value,
-  mock,
-  strong,
-}: {
-  label: string;
-  value: string | number;
-  mock?: boolean;
-  strong?: boolean;
-}) {
-  return (
-    <div className="rounded-lg border border-border bg-white p-3">
-      <div className="mb-1 flex min-h-4 items-center justify-between gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
-          {label}
-        </p>
-        {mock && <MockBadge />}
-      </div>
-      <p
+    return (
+      <span
         className={cn(
-          "break-words font-mono text-sm font-semibold text-navy-900",
-          mock && "italic text-text-muted",
-          strong && "text-base",
+          "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
+          config.className,
         )}
       >
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function MockBadge() {
-  return (
-    <span className="rounded border border-warning/20 bg-warning-bg px-1.5 py-0.5 text-[10px] font-semibold text-warning">
-      mock
-    </span>
-  );
-}
-
-function GeometryItem({
-  label,
-  value,
-}: {
-  label: string;
-  value: string | number;
-}) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-xs text-text-muted">{label}</span>
-      <span className="break-words font-mono text-sm font-semibold text-navy-900">
-        {value}
+        {config.icon}
+        {config.label}
       </span>
-    </div>
-  );
-}
+    );
+  }
 
-function Notice({
-  children,
-  icon,
-  tone = "default",
-}: {
-  children: React.ReactNode;
-  icon: React.ReactNode;
-  tone?: "default" | "warning";
-}) {
-  return (
-    <div
-      className={cn(
-        "flex items-start gap-3 rounded-xl border px-4 py-3 text-sm",
-        tone === "warning"
-          ? "border-warning/30 bg-warning-bg text-warning"
-          : "border-border bg-bg-surface text-text-secondary",
-      )}
-    >
-      <span className="mt-0.5 flex-none">{icon}</span>
-      <span>{children}</span>
-    </div>
-  );
-}
+  function Panel({ children }: { children: React.ReactNode }) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35 }}
+        className="rounded-xl border border-border bg-white p-5 shadow-sm"
+        style={{ boxShadow: "0 4px 24px rgba(10,22,40,0.06)" }}
+      >
+        {children}
+      </motion.div>
+    );
+  }
+
+  function Fact({
+    label,
+    value,
+    compact,
+  }: {
+    label: string;
+    value: string | number;
+    compact?: boolean;
+  }) {
+    return (
+      <div className={compact ? "" : "flex h-full flex-col justify-center rounded-lg border border-border bg-bg-surface p-3"}>
+        <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+          {label}
+        </p>
+        <p className="break-words text-sm font-semibold text-navy-900">
+          {value || "N/A"}
+        </p>
+      </div>
+    );
+  }
+
+  function Metric({
+    label,
+    value,
+    mock,
+    strong,
+  }: {
+    label: string;
+    value: string | number;
+    mock?: boolean;
+    strong?: boolean;
+  }) {
+    return (
+      <div className="flex h-full flex-col justify-center rounded-lg border border-border bg-bg-surface p-3">
+        <div className="mb-1 flex min-h-4 items-center justify-between gap-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+            {label}
+          </p>
+          {mock && <MockBadge />}
+        </div>
+        <p
+          className={cn(
+            "break-words text-sm font-semibold text-navy-900",
+            strong && "text-base",
+          )}
+        >
+          {value}
+        </p>
+      </div>
+    );
+  }
+
+  function MockBadge() {
+    return (
+      <span className="rounded border border-warning/20 bg-warning-bg px-1.5 py-0.5 text-[10px] font-semibold text-warning">
+        mock
+      </span>
+    );
+  }
+
+  function GeometryItem({
+    label,
+    value,
+  }: {
+    label: string;
+    value: string | number;
+  }) {
+    return (
+      <div className="flex h-full flex-col justify-center rounded-lg border border-border bg-bg-surface p-3">
+        <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+          {label}
+        </p>
+        <p className="break-words text-sm font-semibold text-navy-900">
+          {value}
+        </p>
+      </div>
+    );
+  }
+
+  function Notice({
+    children,
+    icon,
+    tone = "default",
+  }: {
+    children: React.ReactNode;
+    icon: React.ReactNode;
+    tone?: "default" | "warning";
+  }) {
+    return (
+      <div
+        className={cn(
+          "flex items-start gap-3 rounded-xl border px-4 py-3 text-sm",
+          tone === "warning"
+            ? "border-warning/30 bg-warning-bg text-warning"
+            : "border-border bg-bg-surface text-text-secondary",
+        )}
+      >
+        <span className="mt-0.5 flex-none">{icon}</span>
+        <span>{children}</span>
+      </div>
+    );
+  }

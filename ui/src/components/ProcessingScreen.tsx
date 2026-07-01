@@ -78,7 +78,7 @@ export default function ProcessingScreen() {
                   <span
                     className={`text-sm font-medium transition-colors duration-300 ${
                       done
-                        ? "text-success line-through decoration-success/40"
+                        ? "text-success"
                         : active
                           ? "text-navy-900"
                           : "text-text-muted"

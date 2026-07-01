@@ -5,7 +5,6 @@ import UploadScreen from "@/components/UploadScreen";
 import ProcessingScreen from "@/components/ProcessingScreen";
 import ResultsScreen from "@/components/ResultsScreen";
 import { extractOperations } from "@/lib/api";
-import { getSampleExtractionResponse } from "@/lib/sampleResponse";
 import type { AppState, ExtractResponse } from "@/types";
 
 export default function App() {
@@ -22,7 +21,6 @@ export default function App() {
   const handleSubmit = async (
     pdf: File,
     step: File | null,
-    useSampleResponse: boolean,
   ) => {
     const nextPdfUrl = URL.createObjectURL(pdf);
     setPdfUrl((current) => {
@@ -30,12 +28,6 @@ export default function App() {
       return nextPdfUrl;
     });
 
-    if (useSampleResponse) {
-      setResult(getSampleExtractionResponse());
-      setState("results");
-      toast.success("Loaded saved response-postman.json");
-      return;
-    }
 
     if (!step) {
       toast.error("Please select a STEP file.");

@@ -22,6 +22,7 @@ export interface PdfAnchor {
 export interface SourceOfTruth {
   evidence_text: string;
   evidence_type: string;
+  component_category?: string;
   sheet: string | null;
   view_or_detail: string | null;
   verbatim_text: string | null;
@@ -32,12 +33,7 @@ export interface SourceOfTruth {
 export interface MachiningOperation {
   opn_no: number;
   operation_name: string;
-  operation_description?: string;
-  why_machine_process?: string;
-  sequence_rationale?: string;
-  plain_summary?: string;
-  what_we_do?: string;
-  why_this_operation?: string;
+  operation_narrative?: string;
   source_of_truth: SourceOfTruth[];
   cycle_time_min: number;
   no_of_machines_per_cell: number;
