@@ -14,8 +14,13 @@ dist/
 # proprietary drawings & large binaries
 docs/
 
-# test artefacts
+# test artefacts & local tracking
 response-postman.json
+token_tracking.csv
+
+# frontend build cache
+ui/.vite/
+ui/node_modules/
 
 # OS
 .DS_Store

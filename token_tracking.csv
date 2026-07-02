@@ -1,0 +1,7 @@
+PRICING REFERENCE,,,,,,,,,
+Model,Input ($/1M tokens),Output ($/1M tokens),,,,,,,
+global.anthropic.claude-sonnet-4-5-20250929-v1:0,3,15,,,,,,,
+,,,,,,,,,
+RUN LOG,,,,,,,,,
+Run #,Date,Model ID,Input Tokens,Output Tokens,Num Operations,Input Cost ($),Output Cost ($),Total Cost ($),Notes
+1,23/06/2026,global.anthropic.claude-sonnet-4-5-20250929-v1:0,4821,1203,16,#VALUE!,#VALUE!,#VALUE!,First run - 6511292 Rev4

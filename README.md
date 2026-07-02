@@ -2,13 +2,13 @@
 
 A FastAPI service that takes a **2D engineering drawing (PDF)** + a **3D STEP file**
 and uses an LLM on **AWS Bedrock (via boto3)** to infer the ordered list of
-**machining operations** for an RFQ estimation — modelled on page 3 of the
-Meridian RFQ machining table.
+**machining operations** for an RFQ estimation.
 
-The LLM produces only the *interpreted* fields — **operation number, description,
-reasoning**. The remaining cost/cycle-time columns are filled with **mock**
-values (flagged `is_mock`) for the frontend table until real cost inputs are
-wired in.
+The LLM produces the full **process-plan content** — a part overview, an ordered
+list of richly-described operations (plain summary, what we do, why, structured
+drawing evidence, machine & tooling), and an overall sequence justification. The
+cost/cycle-time columns are filled with **mock** values (flagged `is_mock`) for
+the frontend table until real cost inputs are wired in.
 
 ## How it works
 
@@ -28,49 +28,120 @@ STEP file ───┘        ▲                       record_machining_operati
   signal, low token count. Raw STEP (~57k lines) is never sent to the model.
 - A single **forced tool** yields schema-validated structured output.
 
-## Requirements / environment
+## Prerequisites
 
-pythonOCC (`pythonocc-core`) is **conda-only**, so the app runs inside the
-`cad-occ` conda env. Dependencies are declared in `pyproject.toml` and managed
-with **uv** — installed *into* the conda env (uv handles everything except
-pythonOCC, which conda already provides):
+- [Miniforge / Conda](https://github.com/conda-forge/miniforge) — for pythonOCC
+- [uv](https://docs.astral.sh/uv/) — for Python dependency management
+- AWS account with Bedrock access and a Claude model enabled in your region
+
+## Setup
+
+### 1. Create the conda environment
 
 ```bash
-# install project + deps into the cad-occ env
+conda create -n cad-occ python=3.11
+conda activate cad-occ
+conda install -c conda-forge pythonocc-core
+```
+
+### 2. Install Python dependencies
+
+```bash
 uv pip install --python "$(conda run -n cad-occ which python)" -e .
 ```
 
-## Configuration
+### 3. Configure environment
 
-Copy `.env.example` → `.env` and set values. The most important one:
+```bash
+cp .env.example .env
+```
 
-- `BEDROCK_MODEL_ID` — **confirm this matches a model enabled in your Bedrock
-  account & region** (Bedrock console → Model access). Bedrock IDs are
-  prefixed / inference-profile style and differ from first-party Anthropic IDs.
-  Default is Sonnet; override anytime.
+Open `.env` and set:
 
-AWS credentials use the standard chain (env vars / shared config / instance
-role). Optionally set `AWS_PROFILE`.
+- `BEDROCK_MODEL_ID` — inference profile ID from your AWS Bedrock console.
+  Run the command below to find available models in your region:
+  ```bash
+  aws bedrock list-inference-profiles --region <your-region> \
+    --query "inferenceProfileSummaries[?contains(inferenceProfileId, 'claude')].inferenceProfileId" \
+    --output table
+  ```
+- `AWS_REGION` — your AWS region (e.g. `ap-south-1`)
+- `AWS_PROFILE` — optional, if using a named AWS profile
+
+AWS credentials use the standard chain (env vars / `~/.aws/credentials` / instance role).
 
 ## Run
 
 ```bash
-conda run -n cad-occ uvicorn app.main:app --reload
+$(conda run -n cad-occ which uvicorn) app.main:app --reload
 ```
 
-- Health: `GET /health`
-- Extract: `POST /api/v1/extract-operations` (multipart: `drawing_pdf`, `step_file`)
+- Health check: `GET http://localhost:8000/health`
+- Extract operations: `POST http://localhost:8000/api/v1/extract-operations`
 - Interactive docs: `http://localhost:8000/docs`
 
-Example:
+### Postman / curl
+
+**Method:** `POST`  
+**URL:** `http://localhost:8000/api/v1/extract-operations`  
+**Body:** `form-data`
+
+| Key | Type |
+|---|---|
+| `drawing_pdf` | File — 2D engineering drawing (PDF) |
+| `step_file` | File — 3D model (STEP / .stp) |
 
 ```bash
 curl -s -X POST http://localhost:8000/api/v1/extract-operations \
-  -F "drawing_pdf=@docs/6511292_Rev_4.pdf" \
-  -F "step_file=@docs/6511292.stp" | jq
+  -F "drawing_pdf=@/path/to/drawing.pdf" \
+  -F "step_file=@/path/to/model.stp" | jq
 ```
 
-## Layout
+### Response shape
+
+See [`response-postman.json`](response-postman.json) for a full example. Top level:
+
+```
+part_overview            part metadata (name, number, revision, blank, material,
+                         drawing standard, most critical dimension + why, gaps)
+operations[]             ordered ops; each has:
+  opn_no, operation_name
+  plain_summary          one plain-language sentence (jargon-free)
+  what_we_do             physical action
+  why_this_operation     type choice + sequence logic + failure consequence
+  source_of_truth[]      structured drawing evidence; each item:
+    evidence_text, evidence_type, sheet, view_or_detail
+    verbatim_text, match_terms[]   ← LLM hints (exact printed tokens)
+    pdf_anchor                      ← backend-resolved PDF location:
+      page, anchor_bbox, region_bbox, page_size,
+      match_status (matched|ambiguous|not_found), confidence, candidates[]
+  machine_type, key_tooling, tool_choice_reason
+  assumptions_or_gaps[]
+  cycle_time_min, machine_cost_rs, amount_rs, ...   ← MOCK (is_mock: true)
+sequence_justification   overall ordering logic
+cell_cycle_time_min, total_capex_rs                 ← MOCK summary
+step_features            pythonOCC geometry summary
+```
+
+Only the cost/time columns are mock; everything else is LLM-derived.
+
+### Evidence → PDF highlighting
+
+Each evidence item is located on the source PDF so the frontend can open the page
+and highlight the exact callout. The split of responsibility:
+
+- **LLM gives hints** — `verbatim_text` (most distinctive printed token) and
+  `match_terms` (up to 5 exact tokens, e.g. `["65.15","64.85","GAUGE"]`).
+- **Backend is the authority** — [`pdf_locator.py`](app/agent/pdf_locator.py) uses
+  pdfplumber to find those tokens on the cited sheet, disambiguates repeats
+  spatially (the `GAUGE` nearest the matched `65.15`/`64.85`), and returns a tight
+  `anchor_bbox` plus an expanded `region_bbox`.
+- `pdf_anchor` is **always present** (even on failure) with `match_status` so the
+  frontend can fall back to opening the page. Coordinates are PDF points,
+  top-left origin — map directly onto a pdf.js canvas scaled by
+  `renderWidth / page_size[0]`.
+
+## Project layout
 
 ```
 app/
@@ -81,17 +152,14 @@ app/
     bedrock_client.py  boto3 bedrock-runtime client
     extractor.py       Converse call + parse + assemble response
     tool_schema.py     forced-tool JSON schema (structured output)
-    step_parser.py     pythonOCC STEP -> feature summary  (pluggable)
-    prompts.py         SYSTEM_PROMPT  (PLACEHOLDER — owned elsewhere)
-    enrichment.py      mock cost/cycle columns  (replace with cost master)
+    step_parser.py     pythonOCC STEP -> feature summary (pluggable)
+    pdf_locator.py     pdfplumber: locate evidence -> page + bbox (highlighting)
+    prompts.py         SYSTEM_PROMPT (owned by prompt author)
+    enrichment.py      mock cost/cycle columns (replace with cost master)
 ```
 
 ## Extension points
 
-- **System prompt** — `app/agent/prompts.py` is a placeholder; drop in the real
-  prompt with no other changes.
-- **STEP features** — `step_parser.summarize_step()` is isolated; swap for a
-  deeper feature recognizer later.
-- **Cost columns** — `enrichment.enrich_operations()` returns mock values today;
-  replace with a real cost-master lookup.
-```
+- **System prompt** — `app/agent/prompts.py`; replace `SYSTEM_PROMPT` with no other changes needed.
+- **STEP features** — `step_parser.summarize_step()` is isolated; swap for a deeper feature recognizer later.
+- **Cost columns** — `enrichment.enrich_operations()` returns mock values; replace with a real cost-master lookup.
