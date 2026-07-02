@@ -54,8 +54,8 @@ export default function ResultsScreen({ result, pdfUrl, onReset }: Props) {
     useState<SelectedEvidence | null>(null);
 
   const hasCriticalDimension =
-    Boolean(result.part_overview.most_critical_dimension) ||
-    Boolean(result.part_overview.most_critical_dimension_reason);
+    Boolean(result.part_overview?.most_critical_dimension) ||
+    Boolean(result.part_overview?.most_critical_dimension_reason);
   const hasSequenceJustification = Boolean(result.sequence_justification);
 
   const toggleOperation = (opnNo: number) => {
@@ -81,10 +81,10 @@ export default function ResultsScreen({ result, pdfUrl, onReset }: Props) {
               Extraction Complete
             </p>
             <h1 className="text-2xl font-bold tracking-tight text-navy-900 md:text-3xl">
-              {result.part_overview.part_name || "Machining Process Plan"}
+              {result.part_overview?.part_name || "Machining Process Plan"}
             </h1>
             <p className="mt-1 truncate text-sm font-mono text-text-secondary">
-              Part {result.part_overview.part_number ?? result.part_number}
+              Part {result.part_overview?.part_number ?? result.part_number}
             </p>
           </div>
           <button
@@ -105,12 +105,12 @@ export default function ResultsScreen({ result, pdfUrl, onReset }: Props) {
               </h2>
             </div>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <Fact label="Input Blank" value={result.part_overview.input_blank} />
-              <Fact label="Material" value={result.part_overview.material} />
-              <Fact label="Revision" value={result.part_overview.revision} />
+              <Fact label="Input Blank" value={result.part_overview?.input_blank} />
+              <Fact label="Material" value={result.part_overview?.material} />
+              <Fact label="Revision" value={result.part_overview?.revision} />
               <Fact
                 label="Drawing Standard"
-                value={result.part_overview.drawing_standard}
+                value={result.part_overview?.drawing_standard}
               />
             </div>
             {hasCriticalDimension && (
@@ -119,14 +119,14 @@ export default function ResultsScreen({ result, pdfUrl, onReset }: Props) {
                   <ShieldAlert className="h-3.5 w-3.5" />
                   Critical Dimension
                 </p>
-                {result.part_overview.most_critical_dimension && (
+                {result.part_overview?.most_critical_dimension && (
                   <p className="text-sm font-semibold text-navy-900">
-                    {result.part_overview.most_critical_dimension}
+                    {result.part_overview?.most_critical_dimension}
                   </p>
                 )}
-                {result.part_overview.most_critical_dimension_reason && (
+                {result.part_overview?.most_critical_dimension_reason && (
                   <p className="mt-2 text-sm leading-6 text-text-secondary">
-                    {result.part_overview.most_critical_dimension_reason}
+                    {result.part_overview?.most_critical_dimension_reason}
                   </p>
                 )}
               </div>
@@ -141,65 +141,69 @@ export default function ResultsScreen({ result, pdfUrl, onReset }: Props) {
               </h2>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <Metric label="Operations" value={result.operations.length} />
+              <Metric label="Operations" value={result.operations?.length ?? 0} />
               <Metric
                 label="Cell Cycle"
-                value={`${formatNumber(result.cell_cycle_time_min)} min`}
+                value={result.cell_cycle_time_min != null ? `${formatNumber(result.cell_cycle_time_min)} min` : "N/A"}
                 mock
               />
               <Metric
                 label="Total Capex"
-                value={formatINR(result.total_capex_rs)}
+                value={result.total_capex_rs != null ? formatINR(result.total_capex_rs) : "N/A"}
                 mock
               />
               <Metric
                 label="Est. Weight"
-                value={`${formatNumber(result.step_features.estimated_weight_kg, 3)} kg`}
+                value={result.step_features?.estimated_weight_kg != null ? `${formatNumber(result.step_features.estimated_weight_kg, 3)} kg` : "N/A"}
               />
             </div>
           </Panel>
         </section>
 
-        <Panel>
-          <div className="mb-4 flex items-center gap-2">
-            <Box className="h-4 w-4 text-navy-700" />
-            <h2 className="text-sm font-semibold text-navy-900">
-              STEP Geometry Features
-            </h2>
-          </div>
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-            <GeometryItem
-              label="Bounding Box"
-              value={
-                result.step_features.bounding_box_mm
-                  .map((v) => v.toFixed(1))
-                  .join(" x ") + " mm"
-              }
-            />
-            <GeometryItem
-              label="Volume"
-              value={`${formatNumber(result.step_features.volume_mm3, 0)} mm3`}
-            />
-            <GeometryItem label="Solids" value={result.step_features.num_solids} />
-            <GeometryItem label="Faces" value={result.step_features.num_faces} />
-            <GeometryItem
-              label="Cylindrical"
-              value={result.step_features.num_cylindrical_faces}
-            />
-            <GeometryItem
-              label="Planar"
-              value={result.step_features.num_planar_faces}
-            />
-            <GeometryItem
-              label="Conical"
-              value={result.step_features.num_conical_faces}
-            />
-            <GeometryItem
-              label="Freeform"
-              value={result.step_features.num_freeform_faces}
-            />
-          </div>
-        </Panel>
+        {result.step_features && (
+          <Panel>
+            <div className="mb-4 flex items-center gap-2">
+              <Box className="h-4 w-4 text-navy-700" />
+              <h2 className="text-sm font-semibold text-navy-900">
+                STEP Geometry Features
+              </h2>
+            </div>
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+              <GeometryItem
+                label="Bounding Box"
+                value={
+                  Array.isArray(result.step_features?.bounding_box_mm)
+                    ? result.step_features.bounding_box_mm
+                        .map((v) => Number(v).toFixed(1))
+                        .join(" x ") + " mm"
+                    : "N/A"
+                }
+              />
+              <GeometryItem
+                label="Volume"
+                value={result.step_features?.volume_mm3 != null ? `${formatNumber(result.step_features.volume_mm3, 0)} mm3` : "N/A"}
+              />
+              <GeometryItem label="Solids" value={result.step_features?.num_solids ?? "N/A"} />
+              <GeometryItem label="Faces" value={result.step_features?.num_faces ?? "N/A"} />
+              <GeometryItem
+                label="Cylindrical"
+                value={result.step_features?.num_cylindrical_faces ?? "N/A"}
+              />
+              <GeometryItem
+                label="Planar"
+                value={result.step_features?.num_planar_faces ?? "N/A"}
+              />
+              <GeometryItem
+                label="Conical"
+                value={result.step_features?.num_conical_faces ?? "N/A"}
+              />
+              <GeometryItem
+                label="Freeform"
+                value={result.step_features?.num_freeform_faces ?? "N/A"}
+              />
+            </div>
+          </Panel>
+        )}
 
         {hasSequenceJustification && (
           <Panel>
@@ -227,9 +231,9 @@ export default function ResultsScreen({ result, pdfUrl, onReset }: Props) {
             </div>
           </div>
 
-          {result.operations.map((op, index) => (
+          {(result.operations || []).map((op, index) => (
             <OperationPanel
-              key={op.opn_no}
+              key={op.opn_no ?? index}
               op={op}
               index={index}
               expanded={openOps.has(op.opn_no)}
@@ -328,27 +332,27 @@ function OperationPanel({
           <div className="grid grid-cols-1 border-b border-border md:grid-cols-5">
             <OperationMetric
               label="Cycle Time"
-              value={`${formatNumber(op.cycle_time_min)} min`}
+              value={op.cycle_time_min != null ? `${formatNumber(op.cycle_time_min)} min` : "N/A"}
               mock={op.is_mock}
             />
             <OperationMetric
               label="Machines / Cell"
-              value={op.no_of_machines_per_cell}
+              value={op.no_of_machines_per_cell ?? "N/A"}
               mock={op.is_mock}
             />
             <OperationMetric
               label="Machine Cost"
-              value={formatINR(op.machine_cost_rs)}
+              value={op.machine_cost_rs != null ? formatINR(op.machine_cost_rs) : "N/A"}
               mock={op.is_mock}
             />
             <OperationMetric
               label="Cells"
-              value={op.no_of_cells}
+              value={op.no_of_cells ?? "N/A"}
               mock={op.is_mock}
             />
             <OperationMetric
               label="Amount"
-              value={formatINR(op.amount_rs)}
+              value={op.amount_rs != null ? formatINR(op.amount_rs) : "N/A"}
               mock={op.is_mock}
             />
           </div>
@@ -393,7 +397,7 @@ function OperationMetric({
 
   function OperationTextRow({ title, text }: { title: string; text: string }) {
     // Convert literal bullet characters or malformed dashes to standard markdown lists
-    const markdownText = text.replace(/^[ \t]*[•-][ \t]*/gm, "- ");
+    const markdownText = (text || "").replace(/^[ \t]*[•-][ \t]*/gm, "- ");
 
     return (
       <div className="grid grid-cols-[138px_minmax(0,1fr)] items-center gap-4 py-4 pr-4 sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6 sm:pr-8">
@@ -430,7 +434,7 @@ function OperationMetric({
       let cat = item.component_category;
       if (!cat) {
         // Heuristic: take text before any digit or specific symbol
-        const match = item.evidence_text.match(/^([^\dØ]+)/);
+        const match = (item.evidence_text || "").match(/^([^\dØ]+)/);
         cat = match ? match[1].trim() : "General";
         // Clean up common trailing words or single letters
         if (cat.endsWith(" R")) cat = cat.slice(0, -2);
@@ -705,13 +709,13 @@ function OperationMetric({
               </div>
               <EvidenceDetail selected={selected} />
               {anchor?.match_status === "ambiguous" &&
-                anchor.candidates.length > 0 && (
+                (anchor.candidates?.length ?? 0) > 0 && (
                   <div className="mt-5">
                     <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-navy-900">
                       Candidate Locations
                     </h3>
                     <div className="space-y-2">
-                      {anchor.candidates.map((candidate, index) => (
+                      {(anchor.candidates || []).map((candidate, index) => (
                         <button
                           type="button"
                           key={`${candidate.anchor_text}-${index}`}

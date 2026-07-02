@@ -42,8 +42,10 @@ export default function App() {
       setResult(data);
       setState("results");
     } catch (err) {
+      console.error("Extraction caught error:", err);
       const msg = err instanceof Error ? err.message : "Unknown error";
       toast.error(`Extraction failed: ${msg}`);
+      alert(`Extraction failed! Error: ${msg}\n\nPlease copy this error and report it.`);
       URL.revokeObjectURL(nextPdfUrl);
       setPdfUrl(null);
       setState("upload");
